@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CATEGORIES, catLabel } from '../lib/referentiels.js'
+import { REF, catLabel } from '../lib/referentiels.js'
 import { Icon } from './Icon.jsx'
 
 /** Toutes les listes de l'application se lisent six lignes à la fois. */
@@ -109,7 +109,7 @@ export function CatSelect({ value, onChange }) {
   return (
     <select className="input" value={value ?? ''} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}>
       <option value="">—</option>
-      {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.id} · {c.label}</option>)}
+      {REF.categories.map((c) => <option key={c.id} value={c.id}>{c.id} · {c.label}</option>)}
     </select>
   )
 }
@@ -236,5 +236,25 @@ export function RechercheTableau({ valeur, onChange, placeholder = 'Rechercher�
         </span>
       )}
     </div>
+  )
+}
+
+
+/**
+ * Champ de mot de passe avec bouton « afficher / masquer ».
+ * Saisir un mot de passe à l'aveugle est la première cause d'échec de connexion :
+ * le bouton est systématique, sur tous les écrans qui en demandent un.
+ */
+export function MotDePasse({ className = 'input', ...rest }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="champ-mdp">
+      <input {...rest} className={className} type={visible ? 'text' : 'password'} />
+      <button type="button" className="voir" onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+        aria-pressed={visible} title={visible ? 'Masquer' : 'Afficher'} tabIndex={-1}>
+        <Icon name={visible ? 'eye_off' : 'eye'} />
+      </button>
+    </span>
   )
 }

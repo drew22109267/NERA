@@ -4,7 +4,7 @@ import { useApi } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, StatCard, Kpi, Bar, Etat, Field, Empty } from '../components/ui.jsx'
 import { AreaChart } from '../components/Charts.jsx'
-import { CATEGORIES, SEV_PAR_NIVEAU, LIBELLE_TENSION, catLabel } from '../lib/referentiels.js'
+import { SEV_PAR_NIVEAU, LIBELLE_TENSION, catLabel, REF } from '../lib/referentiels.js'
 
 const PERIODES = [7, 30, 90, 365]
 const SEV_CAT = { 1: 'sev-1', 2: 'sev-2', 3: 'sev-3', 4: 'sev-4' }

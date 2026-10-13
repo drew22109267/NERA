@@ -4,7 +4,7 @@ import { api } from '../api/client.js'
 import { useApi } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, Field, CatBadge, Etat, Alert, Bar, Empty } from '../components/ui.jsx'
-import { ACTIONS_DECISION, minutes, catLabel, SEV_PAR_NIVEAU, LIBELLE_TENSION } from '../lib/referentiels.js'
+import { minutes, catLabel, SEV_PAR_NIVEAU, LIBELLE_TENSION, REF } from '../lib/referentiels.js'
 
 export default function Decision() {
   const { id } = useParams()
@@ -15,8 +15,15 @@ export default function Decision() {
   const p = passage.data
   const services = useApi('/api/services', { hospitalisationSeule: true })
 
+  // L'orientation se fait dans un seul hôpital : celui du service visé, sinon celui choisi ici.
+  const [etabChoisi, setEtabChoisi] = useState('')
+  const etabVise = REF.services.find((s) => s.id === p?.serviceViseId)?.etablissementId
+    ?? (REF.etablissements.length === 1 ? REF.etablissements[0].id : '')
+  const etabId = etabChoisi || etabVise || ''
+  const [diagnostic, setDiagnostic] = useState('')
+
   const orientation = useApi('/api/orientation',
-    p ? { motif: p?.motif, age: p?.patientAge, sexe: p?.patientSexe, categorie: p?.categorie ?? undefined } : null,
+    p ? { motif: p?.motif, age: p?.patientAge, sexe: p?.patientSexe, categorie: p?.categorie ?? undefined, etablissementId: etabId } : null,
     { skip: !p })
 
   const prevision = useApi(p?.serviceViseId ? `/api/services/${p?.serviceViseId}/prevision` : null,
@@ -34,12 +41,12 @@ export default function Decision() {
 
   // Recommandation : urgence clinique × disponibilité réelle × prévision.
   const recommandation = (() => {
-    if (!p?.categorie) return ACTIONS_DECISION[0]
-    if (libres > 0 && p?.categorie <= 2) return ACTIONS_DECISION[0]
-    if (libres > 0 && (risque === null || risque < 0.6)) return ACTIONS_DECISION[0]
-    if (libres <= 0 && p?.categorie <= 2) return (risque ?? 0) > 0.8 ? ACTIONS_DECISION[2] : ACTIONS_DECISION[1]
-    if (libres <= 0) return ACTIONS_DECISION[3]
-    return ACTIONS_DECISION[1]
+    if (!p?.categorie) return REF.actionsDecision[0]
+    if (libres > 0 && p?.categorie <= 2) return REF.actionsDecision[0]
+    if (libres > 0 && (risque === null || risque < 0.6)) return REF.actionsDecision[0]
+    if (libres <= 0 && p?.categorie <= 2) return (risque ?? 0) > 0.8 ? REF.actionsDecision[2] : REF.actionsDecision[1]
+    if (libres <= 0) return REF.actionsDecision[3]
+    return REF.actionsDecision[1]
   })()
 
   const action = choix || recommandation
@@ -53,15 +60,16 @@ export default function Decision() {
         action,
         serviceId: serviceCible ? Number(serviceCible) : (propose?.serviceId ?? p?.serviceViseId ?? null),
         motif: motif || null,
-        recommandation
+        recommandation,
+        diagnosticEntree: action.startsWith('Admettre') && diagnostic ? diagnostic : null
       })
-      if (action === ACTIONS_DECISION[2] || action === ACTIONS_DECISION[3]) {
+      if (action === REF.actionsDecision[2] || action === REF.actionsDecision[3]) {
         await api.post('/api/demandes', {
           serviceId: Number(serviceCible) || propose?.serviceId || p?.serviceViseId,
           patientId: p?.patientId,
           motif: libres <= 0 ? 'Aucun lit disponible' : (motif || 'Report décidé par le clinicien'),
           gravite: p?.categorie <= 2 ? 'Sévère' : p?.categorie === 3 ? 'Modéré' : 'Léger',
-          devenir: action === ACTIONS_DECISION[2] ? 'Transféré (autre hôpital)' : 'Admis plus tard'
+          devenir: action === REF.actionsDecision[2] ? 'Transféré (autre hôpital)' : 'Admis plus tard'
         }).catch(() => { /* la décision est déjà enregistrée */ })
         toast.info('Demande non satisfaite enregistrée', 'Elle alimente le registre de la demande réelle.')
       }
@@ -167,20 +175,39 @@ export default function Decision() {
                   <div className="stack-sm">
                     <Field label="Action retenue">
                       <select className="input" value={action} onChange={(e) => setChoix(e.target.value)}>
-                        {ACTIONS_DECISION.map((a) => (
+                        {REF.actionsDecision.map((a) => (
                           <option key={a} value={a}>{a}{a === recommandation ? ' — recommandé' : ''}</option>
                         ))}
                       </select>
                     </Field>
+                    {REF.etablissements.length > 1 && (
+                      <Field label="Hôpital">
+                        <select className="input" value={etabId} onChange={(e) => { setEtabChoisi(e.target.value); setServiceCible('') }}>
+                          <option value="">—</option>
+                          {REF.etablissements.map((h) => <option key={h.id} value={h.id}>{h.nom || h.code}</option>)}
+                        </select>
+                      </Field>
+                    )}
                     <Field label="Service de destination">
                       <select className="input" value={serviceCible || propose?.serviceId || p?.serviceViseId || ''}
                         onChange={(e) => setServiceCible(e.target.value)}>
                         <option value="">—</option>
-                        {(services.data ?? []).map((s) => (
+                        {(services.data ?? []).filter((s) => !etabId || String(s.etablissementId) === String(etabId)).map((s) => (
                           <option key={s.id} value={s.id}>{s.nom} — {s.libres} lit(s) libre(s)</option>
                         ))}
                       </select>
                     </Field>
+                    {action.startsWith('Admettre') && (
+                      <Field label="Diagnostic d’entrée" hint={REF.categoriesDiagnostic.length
+                        ? 'Mêmes catégories que le dataset des registres'
+                        : 'Liste vide : renseignez les catégories de diagnostic dans Administration › Listes'}>
+                        <select className="input" value={diagnostic} onChange={(e) => setDiagnostic(e.target.value)}
+                          disabled={!REF.categoriesDiagnostic.length}>
+                          <option value="">non renseigné</option>
+                          {REF.categoriesDiagnostic.map((x) => <option key={x}>{x}</option>)}
+                        </select>
+                      </Field>
+                    )}
                     {divergence && (
                       <Field label="Motif de divergence" hint="Obligatoire — audit d’équité et amélioration du modèle">
                         <input className="input" value={motif} onChange={(e) => setMotif(e.target.value)}

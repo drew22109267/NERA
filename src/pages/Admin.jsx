@@ -4,19 +4,19 @@ import { useApi } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Link } from 'react-router-dom'
-import { PageHead, Panel, Field, Etat, Alert, Empty, Bar, Pager, PAR_PAGE, RechercheTableau, useTableau } from '../components/ui.jsx'
+import { PageHead, Panel, Field, Etat, Alert, Empty, Bar, Pager, PAR_PAGE, RechercheTableau, useTableau, MotDePasse } from '../components/ui.jsx'
 import { Icon } from '../components/Icon.jsx'
+import { useReferentiels } from '../lib/ReferentielsContext.jsx'
 import { Confirm } from '../components/Modal.jsx'
 import PatientForm, { PATIENT_VIDE, patientValide, depuisPatient } from '../components/PatientForm.jsx'
-import { dateFr } from '../lib/referentiels.js'
-import { ROLES, ROLE_LABEL, dateHeureFr, SEV_PAR_NIVEAU } from '../lib/referentiels.js'
+import { REF, roleLabel, dateFr, dateHeureFr, SEV_PAR_NIVEAU } from '../lib/referentiels.js'
 
-const ONGLETS = [['services', 'Services & capacités'], ['seuils', 'Seuils & coûts'],
-  ['comptes', 'Comptes'], ['patients', 'Patients'], ['modeles', 'Modèles']]
+const ONGLETS = [['etablissement', 'Hôpitaux'], ['services', 'Services & lits'], ['orientation', 'Règles d’orientation'],
+  ['listes', 'Listes & tarifs'], ['seuils', 'Seuils & coûts'], ['comptes', 'Comptes'], ['patients', 'Patients'], ['modeles', 'Modèles']]
 
 export default function Admin() {
   const toast = useToast()
-  const [onglet, setOnglet] = useState('services')
+  const [onglet, setOnglet] = useState('etablissement')
   const [edition, setEdition] = useState(null)
   const [envoi, setEnvoi] = useState(false)
   const [compteNouveau, setCompteNouveau] = useState(null)
@@ -25,11 +25,23 @@ export default function Admin() {
   const [pagePat, setPagePat] = useState(1)
   const [patientForm, setPatientForm] = useState(null)   // { id?, ...champs }
   const [patientSuppr, setPatientSuppr] = useState(null)
+  const [fiche, setFiche] = useState(null)          // création / édition d'un service
+  const [serviceSuppr, setServiceSuppr] = useState(null)
+  const [regle, setRegle] = useState(null)          // création / édition d'une règle
+  const [regleSuppr, setRegleSuppr] = useState(null)
+  const [etabForm, setEtabForm] = useState(null)      // { id?, nom, code, … }
+  const [etabSuppr, setEtabSuppr] = useState(null)
+  const [filtreEtab, setFiltreEtab] = useState('')
+  const { ref, recharger: rechargerRef } = useReferentiels()
 
   const services = useApi('/api/services')
   const parametres = useApi('/api/parametres')
   const comptes = useApi('/api/auth/utilisateurs')
-  const etab = useApi('/api/parametres/etablissement')
+  const etabs = useApi('/api/etablissements')
+  const listeEtabs = etabs.data ?? []
+  const actifs = listeEtabs.filter((e) => e.actif)
+  const nomEtab = (id) => listeEtabs.find((e) => e.id === id)?.nom ?? '—'
+  const regles = useApi('/api/orientation/regles', null, { skip: onglet !== 'orientation' })
   const patients = useApi('/api/patients', { q: qPat, page: pagePat, pageSize: PAR_PAGE }, { skip: onglet !== 'patients' })
 
   const param = (cle, defaut) => parametres.data?.find((p) => p.cle === cle)?.valeur ?? defaut
@@ -67,7 +79,7 @@ export default function Admin() {
   const changerRole = async (u, role) => {
     try {
       await api.patch(`/api/auth/utilisateurs/${u.id}`, { role })
-      toast.succes('Rôle modifié', `${u.nom} → ${ROLE_LABEL[role]}`)
+      toast.succes('Rôle modifié', `${u.nom} → ${roleLabel(role)}`)
       comptes.recharger()
     } catch (e) { toast.erreur('Modification refusée', e.message) }
   }
@@ -94,6 +106,83 @@ export default function Admin() {
     } catch (e) { toast.erreur('Suppression refusée', e.message) }
   }
 
+  const SERVICE_VIDE = { code: '', nom: '', pole: '', hospitalisation: true, urgencesCompatible: false, ageMin: 0, ageMax: 120, litsInstalles: 0, litsArmes: 0 }
+  const REGLE_VIDE = { motif: '', serviceCode: '', serviceAlternatifCode: '', ageMin: 0, ageMax: 120, sexeRequis: '', categorieMax: '', commentaire: '', priorite: 100 }
+
+  const enregistrerFiche = async (e) => {
+    e.preventDefault()
+    setEnvoi(true)
+    try {
+      const corps = { ...fiche, ageMin: Number(fiche.ageMin), ageMax: Number(fiche.ageMax),
+        litsInstalles: Number(fiche.litsInstalles), litsArmes: Number(fiche.litsArmes),
+        etablissementId: fiche.etablissementId ? Number(fiche.etablissementId) : null }
+      delete corps.id
+      if (fiche.id) await api.put(`/api/services/${fiche.id}/fiche`, corps)
+      else await api.post('/api/services', corps)
+      toast.succes(fiche.id ? 'Service modifié' : 'Service créé', fiche.nom)
+      setFiche(null); services.recharger(); rechargerRef()
+    } catch (e2) { toast.erreur('Enregistrement refusé', e2.message) } finally { setEnvoi(false) }
+  }
+
+  const supprimerService = async (svc) => {
+    try {
+      const r = await api.del(`/api/services/${svc.id}`)
+      toast.succes(r?.desactive ? 'Service désactivé' : 'Service supprimé', r?.message ?? svc.nom)
+      services.recharger(); rechargerRef()
+    } catch (e) { toast.erreur('Suppression refusée', e.message) }
+  }
+
+  const enregistrerRegle = async (e) => {
+    e.preventDefault()
+    setEnvoi(true)
+    try {
+      const corps = { ...regle, ageMin: Number(regle.ageMin), ageMax: Number(regle.ageMax),
+        priorite: Number(regle.priorite), categorieMax: regle.categorieMax === '' ? null : Number(regle.categorieMax),
+        serviceAlternatifCode: regle.serviceAlternatifCode || null, sexeRequis: regle.sexeRequis || null }
+      delete corps.id
+      if (regle.id) await api.put(`/api/orientation/regles/${regle.id}`, corps)
+      else await api.post('/api/orientation/regles', corps)
+      toast.succes(regle.id ? 'Règle modifiée' : 'Règle créée', regle.motif)
+      setRegle(null); regles.recharger(); rechargerRef()
+    } catch (e2) { toast.erreur('Enregistrement refusé', e2.message) } finally { setEnvoi(false) }
+  }
+
+  const supprimerRegle = async (r) => {
+    try {
+      await api.del(`/api/orientation/regles/${r.id}`)
+      toast.succes('Règle supprimée', r.motif)
+      regles.recharger(); rechargerRef()
+    } catch (e) { toast.erreur('Suppression refusée', e.message) }
+  }
+
+  const enregistrerEtab = async (e) => {
+    e.preventDefault()
+    setEnvoi(true)
+    try {
+      const corps = { nom: etabForm.nom, code: etabForm.code, categorie: etabForm.categorie, ville: etabForm.ville, region: etabForm.region }
+      if (etabForm.id) await api.put(`/api/etablissements/${etabForm.id}`, corps)
+      else await api.post('/api/etablissements', corps)
+      toast.succes(etabForm.id ? 'Hôpital modifié' : 'Hôpital ajouté', etabForm.nom)
+      setEtabForm(null); etabs.recharger(); rechargerRef()
+    } catch (e2) { toast.erreur('Enregistrement refusé', e2.message) } finally { setEnvoi(false) }
+  }
+
+  const supprimerEtab = async (h) => {
+    try {
+      const r = await api.del(`/api/etablissements/${h.id}`)
+      toast.succes(r?.desactive ? 'Hôpital désactivé' : 'Hôpital supprimé', r?.message ?? h.nom)
+      etabs.recharger(); rechargerRef()
+    } catch (e) { toast.erreur('Suppression refusée', e.message) }
+  }
+
+  const enregistrerListe = async (cle, texte) => {
+    try {
+      await api.put(`/api/parametres/${cle}`, { valeur: texte })
+      parametres.recharger(); rechargerRef()
+      toast.succes('Liste enregistrée')
+    } catch (e) { toast.erreur('Liste non enregistrée', e.message) }
+  }
+
   const enregistrerPatient = async (e) => {
     e.preventDefault()
     setEnvoi(true)
@@ -117,8 +206,9 @@ export default function Admin() {
   }
 
   const tblComptes = useTableau(comptes.data ?? [],
-    ['nom', 'email', (u) => ROLE_LABEL[u.role] ?? u.role])
-  const tblServices = useTableau(services.data ?? [], ['nom', 'code', 'pole'])
+    ['nom', 'email', (u) => roleLabel(u.role) ?? u.role])
+  const tblServices = useTableau((services.data ?? []).filter((s) => !filtreEtab || String(s.etablissementId) === filtreEtab),
+    ['nom', 'code', 'pole', (s) => nomEtab(s.etablissementId)])
 
   const poles = [...new Set(tblServices.visibles.map((s) => s.pole))]
 
@@ -128,9 +218,7 @@ export default function Admin() {
         actions={<button className="btn btn-secondary" onClick={() => window.open(`${api.base}/swagger`, '_blank')}>
           Documentation de l’API
         </button>}>
-        {etab.data
-          ? `${etab.data?.nom} — ${etab.data?.categorie}, ${etab.data?.ville} (${etab.data?.region}).`
-          : 'Services, seuils d’alerte, rapport de coûts, comptes et versions de modèle.'}
+        Hôpitaux, services et lits, règles d’orientation, listes, tarifs, seuils, comptes et modèles : tout se configure ici.
       </PageHead>
 
       <div className="seg" style={{ marginBottom: 'var(--space-4)' }}>
@@ -143,13 +231,25 @@ export default function Admin() {
       </div>
 
       {onglet === 'services' && (
-        <Panel kicker="Paramétrage" title="Capacités par service">
+        <Panel kicker="Paramétrage" title="Services et lits"
+          actions={<>
+            {actifs.length > 1 && (
+              <select className="input" style={{ minHeight: 34, width: 'auto' }} value={filtreEtab}
+                onChange={(e) => setFiltreEtab(e.target.value)} aria-label="Hôpital">
+                <option value="">Tous les hôpitaux</option>
+                {actifs.map((h) => <option key={h.id} value={h.id}>{h.nom || h.code || `Hôpital ${h.id}`}</option>)}
+              </select>
+            )}
+            <button className="btn btn-primary btn-sm"
+              onClick={() => setFiche({ ...SERVICE_VIDE, etablissementId: filtreEtab || (actifs.length === 1 ? String(actifs[0].id) : '') })}>
+              <Icon name="plus" /> Nouveau service</button>
+          </>}>
           <RechercheTableau valeur={tblServices.q} onChange={tblServices.setQ}
             placeholder="Rechercher un service, un code, un pôle…"
             total={tblServices.total} libelle="service" />
           <Etat loading={services.loading} error={services.error} onRetry={services.recharger}
             vide={!services.data?.length} videTitre="Aucun service"
-            videTexte="Le référentiel de services est amorcé au premier démarrage de l’API.">
+            videTexte="Aucun service n’est pré-rempli : créez-les avec le bouton « Nouveau service ».">
             <div className="stack">
               {poles.map((pole) => (
                 <div key={pole}>
@@ -165,6 +265,7 @@ export default function Admin() {
                         {tblServices.visibles.filter((s) => s.pole === pole).map((s) => (
                           <tr key={s.id}>
                             <td style={{ fontWeight: 600 }}>{s.nom}<span className="sub">{s.code}
+                              {actifs.length > 1 && ` · ${nomEtab(s.etablissementId)}`}
                               {!s.hospitalisation && ' · sans lits'}</span></td>
                             <td className="num">{s.litsInstalles}</td>
                             <td className="num">{s.litsArmes}</td>
@@ -178,7 +279,13 @@ export default function Admin() {
                                 : <span className="text-muted">—</span>}
                             </td>
                             <td>
-                              <button className="btn btn-ghost" onClick={() => setEdition({ ...s })}>Modifier</button>
+                              <div className="row" style={{ gap: 2, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
+                                <button className="btn btn-ghost btn-sm" onClick={() => setEdition({ ...s })}>Occupation</button>
+                                <button className="icon-btn" title="Modifier la fiche"
+                                  onClick={() => setFiche({ id: s.id, etablissementId: String(s.etablissementId), code: s.code, nom: s.nom, pole: s.pole, hospitalisation: s.hospitalisation, urgencesCompatible: s.urgencesCompatible, ageMin: s.ageMin, ageMax: s.ageMax, litsInstalles: s.litsInstalles, litsArmes: s.litsArmes })}>
+                                  <Icon name="edit" /></button>
+                                <button className="icon-btn danger" title="Supprimer" onClick={() => setServiceSuppr(s)}><Icon name="trash" /></button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -192,6 +299,135 @@ export default function Admin() {
             </div>
           </Etat>
         </Panel>
+      )}
+
+      {onglet === 'etablissement' && (
+        <div className="grid g-side">
+          <Panel kicker="Identité" title="Hôpitaux"
+            actions={<button className="btn btn-primary btn-sm"
+              onClick={() => setEtabForm({ nom: '', code: '', categorie: '', ville: '', region: '' })}>
+              <Icon name="plus" /> Nouvel hôpital
+            </button>}>
+            <Etat loading={etabs.loading} error={etabs.error} onRetry={etabs.recharger}
+              vide={!listeEtabs.length} videTitre="Aucun hôpital">
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Hôpital</th><th>Localisation</th><th className="num">Services</th><th>Rôle dans l’étude</th><th>État</th><th /></tr></thead>
+                  <tbody>
+                    {listeEtabs.map((h) => (
+                      <tr key={h.id}>
+                        <td style={{ fontWeight: 600 }}>{h.nom || <span className="text-muted">non renseigné</span>}
+                          <span className="sub">{[h.code, h.categorie].filter(Boolean).join(' · ') || '—'}</span></td>
+                        <td>{[h.ville, h.region].filter(Boolean).join(' · ') || <span className="text-muted">—</span>}</td>
+                        <td className="num">{h.services}</td>
+                        <td>{h.roleRecherche
+                          ? <span className={`tag ${h.roleRecherche === 'Développement' ? 'tag-brand' : 'tag-sev-4'}`}>{h.roleRecherche}</span>
+                          : <Link to="/donnees" className="text-muted">à définir</Link>}</td>
+                        <td><span className={`tag ${h.actif ? 'tag-sev-4' : 'tag-error'}`}>{h.actif ? 'Actif' : 'Désactivé'}</span></td>
+                        <td>
+                          <div className="row" style={{ gap: 2, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
+                            <button className="icon-btn" title="Modifier"
+                              onClick={() => setEtabForm({ id: h.id, nom: h.nom, code: h.code, categorie: h.categorie, ville: h.ville, region: h.region })}>
+                              <Icon name="edit" /></button>
+                            <button className="icon-btn danger" title="Supprimer" onClick={() => setEtabSuppr(h)}><Icon name="trash" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Etat>
+            <p className="text-muted" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 0 }}>
+              Chaque hôpital a ses services et ses registres. Le rôle dans l’étude (développement ou
+              validation externe) se choisit dans « Dataset de recherche », au vu de la comparaison des données.
+            </p>
+          </Panel>
+          <Panel kicker="Mise en service" title="Ce qu’il reste à configurer">
+            <div className="stack-sm">
+              {[
+                ['Hôpitaux renseignés', actifs.length > 0 && actifs.every((h) => !!h.nom)],
+                ['Au moins un service avec des lits', (services.data ?? []).some((x) => x.litsArmes > 0)],
+                ['Règles d’orientation', ref.motifsRecours.length > 0],
+                ['Salles du bloc opératoire', ref.sallesBloc.length > 0],
+                ['Grille tarifaire', (parametres.data ?? []).some((x) => x.cle.startsWith('tarif.') && x.valeur)]
+              ].map(([l, ok]) => (
+                <div key={l} className="row" style={{ gap: 10 }}>
+                  <span className={`tag ${ok ? 'tag-sev-4' : 'tag-neutral'}`}>{ok ? 'Fait' : 'À faire'}</span>
+                  <span style={{ fontSize: 14 }}>{l}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-muted" style={{ fontSize: 12.5, marginTop: 14, marginBottom: 0 }}>
+              Rien n’est pré-rempli : chaque valeur affichée dans l’application vient de ce que vous saisissez ici.
+            </p>
+          </Panel>
+        </div>
+      )}
+
+      {onglet === 'orientation' && (
+        <Panel kicker="Redistribution" title="Règles motif → service"
+          actions={<button className="btn btn-primary btn-sm" onClick={() => setRegle({ ...REGLE_VIDE })}>
+            <Icon name="plus" /> Nouvelle règle</button>}>
+          <Etat loading={regles.loading} error={regles.error} onRetry={regles.recharger}
+            vide={!regles.data?.length} videTitre="Aucune règle"
+            videTexte="Une règle associe un motif de recours à un service d’accueil, avec ses conditions d’âge, de sexe et de gravité.">
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Priorité</th><th>Motif</th><th>Service</th><th>Repli</th><th>Âge</th><th>Sexe</th><th>Cat. max</th><th /></tr></thead>
+                <tbody>
+                  {regles.data?.map((r) => (
+                    <tr key={r.id}>
+                      <td className="num">{r.priorite}</td>
+                      <td style={{ fontWeight: 600 }}>{r.motif}{r.commentaire && <span className="sub">{r.commentaire}</span>}</td>
+                      <td>{r.serviceCode}</td>
+                      <td>{r.serviceAlternatifCode ?? <span className="text-muted">—</span>}</td>
+                      <td>{r.ageMin}–{r.ageMax} ans</td>
+                      <td>{r.sexeRequis ?? <span className="text-muted">tous</span>}</td>
+                      <td>{r.categorieMax ?? <span className="text-muted">—</span>}</td>
+                      <td>
+                        <div className="row" style={{ gap: 2, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
+                          <button className="icon-btn" title="Modifier" onClick={() => setRegle({ ...REGLE_VIDE, ...r, serviceAlternatifCode: r.serviceAlternatifCode ?? '', sexeRequis: r.sexeRequis ?? '', categorieMax: r.categorieMax ?? '', commentaire: r.commentaire ?? '' })}><Icon name="edit" /></button>
+                          <button className="icon-btn danger" title="Supprimer" onClick={() => setRegleSuppr(r)}><Icon name="trash" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Etat>
+        </Panel>
+      )}
+
+      {onglet === 'listes' && (
+        <Etat loading={parametres.loading} error={parametres.error} onRetry={parametres.recharger}>
+          <div className="grid g2">
+            <Panel kicker="Listes de l’établissement" title="Valeurs proposées dans les formulaires">
+              <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>Une valeur par ligne. Vide = valeur par défaut du système.</p>
+              <div className="stack-sm">
+                {(parametres.data ?? []).filter((x) => x.cle.startsWith('liste.')).map((x) => (
+                  <Field key={x.cle} label={x.libelle}>
+                    <textarea className="input" rows={3} defaultValue={x.valeur} key={x.cle + x.valeur}
+                      onBlur={(e) => { if (e.target.value !== x.valeur) enregistrerListe(x.cle, e.target.value) }} />
+                  </Field>
+                ))}
+              </div>
+            </Panel>
+            <Panel kicker="Grille tarifaire" title="Tarifs et couverture (FCFA)">
+              <p className="text-muted" style={{ fontSize: 13, marginTop: 0 }}>Sans tarif saisi, l’espace patient n’affiche aucune estimation de dépense.</p>
+              <div className="form-grid">
+                {(parametres.data ?? []).filter((x) => x.cle.startsWith('tarif.') || x.cle.startsWith('couverture.')).map((x) => (
+                  <Field key={x.cle} label={x.libelle} hint={x.cle.startsWith('couverture.') ? 'Part couverte, de 0 à 1' : undefined}>
+                    <input className="input" type="number" min="0" step={x.cle.startsWith('couverture.') ? '0.05' : '1'}
+                      defaultValue={x.valeur} key={x.cle + x.valeur}
+                      onBlur={(e) => { if (e.target.value !== x.valeur) enregistrerParam(x.cle, e.target.value) }} />
+                  </Field>
+                ))}
+              </div>
+            </Panel>
+          </div>
+        </Etat>
       )}
 
       {onglet === 'seuils' && (
@@ -233,6 +469,23 @@ export default function Admin() {
                 patients réorientés évités — à un coût exprimé en francs CFA.
               </Alert>
             </Panel>
+
+            <Panel kicker="Dataset de recherche" title="Indicateurs hospitaliers et coffre-fort">
+              <div className="form-grid">
+                <Field label="Début de la période de test final" hint="Les jours à partir de cette date ne sont comptés dans aucun indicateur">
+                  <input className="input" type="date" defaultValue={param('recherche.dateVerrou', '')} key={param('recherche.dateVerrou', '')}
+                    onBlur={(e) => e.target.value && enregistrerParam('recherche.dateVerrou', e.target.value)} />
+                </Field>
+                <Field label="Fenêtre de censure (jours)" hint="Un séjour sans sortie admis depuis moins longtemps est jugé encore en cours">
+                  <input className="input" type="number" min="1" max="365" defaultValue={param('recherche.fenetreCensure', '30')}
+                    key={param('recherche.fenetreCensure', '30')} onBlur={(e) => enregistrerParam('recherche.fenetreCensure', e.target.value)} />
+                </Field>
+              </div>
+              <p className="text-muted" style={{ fontSize: 12.5, margin: 'var(--space-3) 0 0' }}>
+                Nombre de jours sans date de sortie : les deux façons de compter (nuits, ou jour d’entrée et de sortie compris)
+                sont prises en compte automatiquement, d’après les lignes où la sortie est écrite. Rien à régler ici.
+              </p>
+            </Panel>
           </div>
         </Etat>
       )}
@@ -268,7 +521,7 @@ export default function Admin() {
                         <td>
                           <select className="input" style={{ minHeight: 34, width: 'auto' }}
                             value={u.role} onChange={(e) => changerRole(u, e.target.value)}>
-                            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                            {Object.keys(REF.roles).map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
                           </select>
                         </td>
                         <td>{u.derniereConnexion ? dateHeureFr(u.derniereConnexion) : <span className="text-muted">jamais</span>}</td>
@@ -401,12 +654,12 @@ export default function Admin() {
 
           <Panel kicker="Apprentissage automatique" title="Emplacement prévu">
             <p style={{ fontSize: 13.5 }}>
-              Aucun modèle d’apprentissage n’est déployé. Trois fonctions du backend portent une
-              implémentation par règles et exposent exactement la signature qu’aura l’appel au
-              microservice de modèles :
+              Aucun modèle d’apprentissage n’est déployé. Trois fonctions du backend renvoient
+              « non disponible » et exposent exactement la signature qu’aura l’appel au microservice
+              de modèles — aucune valeur n’est simulée en attendant :
             </p>
             <ul style={{ fontSize: 13, paddingLeft: 18, color: 'var(--muted)' }}>
-              <li><code>TriageScoreService.Evaluer</code> — score et explication de triage</li>
+              <li><code>TriageScoreService.Evaluer</code> — catégorie et explication de triage (les scores cliniques publiés restent calculés)</li>
               <li><code>PrevisionCapaciteService.Prevoir</code> — médiane et intervalle d’occupation</li>
               <li><code>PrevisionCapaciteService.ProbaSortie</code> — probabilité de sortie par jour</li>
             </ul>
@@ -417,6 +670,107 @@ export default function Admin() {
             </p>
           </Panel>
         </div>
+      )}
+
+      {fiche && (
+        <Modal titre={fiche.id ? 'Modifier le service' : 'Nouveau service'} large onClose={() => setFiche(null)}
+          sousTitre="Les lits individuels sont créés ou retirés automatiquement selon le nombre de lits armés."
+          actions={<>
+            <button className="btn btn-secondary" onClick={() => setFiche(null)}>Annuler</button>
+            <button className="btn btn-primary" form="form-fiche" type="submit" disabled={envoi}>Enregistrer</button>
+          </>}>
+          <form id="form-fiche" className="stack" onSubmit={enregistrerFiche}>
+            <div className="form-grid">
+              {actifs.length > 1 && (
+                <Field label="Hôpital *" hint={fiche.id ? 'Un service ne change pas d’hôpital' : undefined}>
+                  <select className="input" required disabled={!!fiche.id} value={fiche.etablissementId ?? ''}
+                    onChange={(e) => setFiche({ ...fiche, etablissementId: e.target.value })}>
+                    <option value="">—</option>
+                    {actifs.map((h) => <option key={h.id} value={h.id}>{h.nom || h.code}</option>)}
+                  </select>
+                </Field>
+              )}
+              <Field label="Code *" hint="Court, unique dans l’hôpital (ex. SAU, MED, PED)">
+                <input className="input" required minLength={2} maxLength={12} value={fiche.code}
+                  onChange={(e) => setFiche({ ...fiche, code: e.target.value.toUpperCase() })} /></Field>
+              <Field label="Nom *"><input className="input" required minLength={2} value={fiche.nom} onChange={(e) => setFiche({ ...fiche, nom: e.target.value })} /></Field>
+              <Field label="Pôle *"><input className="input" required minLength={2} value={fiche.pole} onChange={(e) => setFiche({ ...fiche, pole: e.target.value })} list="poles" /></Field>
+              <Field label="Lits installés"><input className="input" type="number" min="0" value={fiche.litsInstalles} onChange={(e) => setFiche({ ...fiche, litsInstalles: e.target.value })} /></Field>
+              <Field label="Lits armés (avec personnel)"><input className="input" type="number" min="0" value={fiche.litsArmes} onChange={(e) => setFiche({ ...fiche, litsArmes: e.target.value })} /></Field>
+              <Field label="Âge minimum"><input className="input" type="number" min="0" max="120" value={fiche.ageMin} onChange={(e) => setFiche({ ...fiche, ageMin: e.target.value })} /></Field>
+              <Field label="Âge maximum"><input className="input" type="number" min="0" max="120" value={fiche.ageMax} onChange={(e) => setFiche({ ...fiche, ageMax: e.target.value })} /></Field>
+            </div>
+            <datalist id="poles">{poles.map((p) => <option key={p} value={p} />)}</datalist>
+            <div className="row" style={{ gap: 18 }}>
+              <label className="check"><input type="checkbox" checked={fiche.hospitalisation} onChange={(e) => setFiche({ ...fiche, hospitalisation: e.target.checked })} /> Service d’hospitalisation (avec lits)</label>
+              <label className="check"><input type="checkbox" checked={fiche.urgencesCompatible} onChange={(e) => setFiche({ ...fiche, urgencesCompatible: e.target.checked })} /> Accueille des patients depuis les urgences</label>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {serviceSuppr && (
+        <Confirm titre="Supprimer ce service" danger confirmer="Supprimer"
+          message={`« ${serviceSuppr.nom} » et ses lits seront supprimés. S’il a un historique de passages ou de séjours, il sera seulement désactivé.`}
+          onConfirm={() => supprimerService(serviceSuppr)} onClose={() => setServiceSuppr(null)} />
+      )}
+
+      {regle && (
+        <Modal titre={regle.id ? 'Modifier la règle' : 'Nouvelle règle d’orientation'} large onClose={() => setRegle(null)}
+          actions={<>
+            <button className="btn btn-secondary" onClick={() => setRegle(null)}>Annuler</button>
+            <button className="btn btn-primary" form="form-regle" type="submit" disabled={envoi || !regle.motif.trim() || !regle.serviceCode}>Enregistrer</button>
+          </>}>
+          <form id="form-regle" className="stack" onSubmit={enregistrerRegle}>
+            <div className="form-grid">
+              <Field label="Motif de recours *"><input className="input" required value={regle.motif} onChange={(e) => setRegle({ ...regle, motif: e.target.value })} list="motifs" /></Field>
+              <Field label="Service d’accueil *">
+                <select className="input" required value={regle.serviceCode} onChange={(e) => setRegle({ ...regle, serviceCode: e.target.value })}>
+                  <option value="">—</option>{(services.data ?? []).map((x) => <option key={x.id} value={x.code}>{x.code} · {x.nom}</option>)}
+                </select></Field>
+              <Field label="Service de repli">
+                <select className="input" value={regle.serviceAlternatifCode} onChange={(e) => setRegle({ ...regle, serviceAlternatifCode: e.target.value })}>
+                  <option value="">aucun</option>{(services.data ?? []).map((x) => <option key={x.id} value={x.code}>{x.code} · {x.nom}</option>)}
+                </select></Field>
+              <Field label="Priorité" hint="1 = examinée en premier"><input className="input" type="number" min="1" value={regle.priorite} onChange={(e) => setRegle({ ...regle, priorite: e.target.value })} /></Field>
+              <Field label="Âge minimum"><input className="input" type="number" min="0" max="120" value={regle.ageMin} onChange={(e) => setRegle({ ...regle, ageMin: e.target.value })} /></Field>
+              <Field label="Âge maximum"><input className="input" type="number" min="0" max="120" value={regle.ageMax} onChange={(e) => setRegle({ ...regle, ageMax: e.target.value })} /></Field>
+              <Field label="Sexe requis"><select className="input" value={regle.sexeRequis} onChange={(e) => setRegle({ ...regle, sexeRequis: e.target.value })}><option value="">tous</option><option value="F">Féminin</option><option value="M">Masculin</option></select></Field>
+              <Field label="Catégorie de triage maximale" hint="Vide = toutes">
+                <select className="input" value={regle.categorieMax} onChange={(e) => setRegle({ ...regle, categorieMax: e.target.value })}>
+                  <option value="">toutes</option>{REF.categories.map((c) => <option key={c.id} value={c.id}>{c.id} · {c.label}</option>)}
+                </select></Field>
+            </div>
+            <datalist id="motifs">{ref.motifsRecours.map((m) => <option key={m} value={m} />)}</datalist>
+            <Field label="Commentaire"><input className="input" value={regle.commentaire} onChange={(e) => setRegle({ ...regle, commentaire: e.target.value })} /></Field>
+          </form>
+        </Modal>
+      )}
+
+      {regleSuppr && (
+        <Confirm titre="Supprimer cette règle" danger confirmer="Supprimer"
+          message={`La règle « ${regleSuppr.motif} → ${regleSuppr.serviceCode} » sera supprimée.`}
+          onConfirm={() => supprimerRegle(regleSuppr)} onClose={() => setRegleSuppr(null)} />
+      )}
+
+      {etabForm && (
+        <Modal titre={etabForm.id ? 'Modifier l’hôpital' : 'Nouvel hôpital'} onClose={() => setEtabForm(null)}
+          actions={<>
+            <button className="btn btn-secondary" onClick={() => setEtabForm(null)}>Annuler</button>
+            <button className="btn btn-primary" form="form-etab" type="submit" disabled={envoi || !etabForm.nom.trim()}>Enregistrer</button>
+          </>}>
+          <form id="form-etab" className="stack-sm" onSubmit={enregistrerEtab}>
+            {[['nom', 'Nom *'], ['code', 'Code'], ['categorie', 'Catégorie'], ['ville', 'Ville'], ['region', 'Région']].map(([k, l]) => (
+              <Field key={k} label={l}><input className="input" required={k === 'nom'} value={etabForm[k]} onChange={(e) => setEtabForm({ ...etabForm, [k]: e.target.value })} /></Field>
+            ))}
+          </form>
+        </Modal>
+      )}
+
+      {etabSuppr && (
+        <Confirm titre="Supprimer cet hôpital" danger confirmer="Supprimer"
+          message={`« ${etabSuppr.nom} » sera supprimé. S’il a des services ou des données importées, il sera seulement désactivé.`}
+          onConfirm={() => supprimerEtab(etabSuppr)} onClose={() => setEtabSuppr(null)} />
       )}
 
       {patientForm && (
@@ -466,18 +820,18 @@ export default function Admin() {
             <Field label="Rôle">
               <select className="input" value={compteNouveau.role}
                 onChange={(e) => setCompteNouveau({ ...compteNouveau, role: e.target.value })}>
-                {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                {Object.keys(REF.roles).map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
               </select>
             </Field>
             <div className="form-grid">
               <Field label="Mot de passe" hint="Au moins 8 caractères.">
-                <input className="input" type="password" required minLength={8} value={compteNouveau.motDePasse}
+                <MotDePasse required minLength={8} value={compteNouveau.motDePasse}
                   onChange={(e) => setCompteNouveau({ ...compteNouveau, motDePasse: e.target.value })} />
               </Field>
               <Field label="Confirmation"
                 erreur={compteNouveau.confirme && compteNouveau.confirme !== compteNouveau.motDePasse
                   ? 'Les deux saisies diffèrent.' : null}>
-                <input className="input" type="password" required value={compteNouveau.confirme}
+                <MotDePasse required value={compteNouveau.confirme}
                   onChange={(e) => setCompteNouveau({ ...compteNouveau, confirme: e.target.value })} />
               </Field>
             </div>

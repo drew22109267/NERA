@@ -2,20 +2,19 @@ import { useState } from 'react'
 import { api } from '../api/client.js'
 import { useApi, useTri } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
-import { Confirm } from '../components/Modal.jsx'
+import { Confirm, Modal } from '../components/Modal.jsx'
 import { PageHead, Panel, Kpi, Bar, Etat, Th, Alert, Field, Pager, RechercheTableau, useTableau } from '../components/ui.jsx'
-import { dateFr } from '../lib/referentiels.js'
+import { REF, dateFr } from '../lib/referentiels.js'
 
-const MOTIFS_BLOCAGE = ['Attente de paiement', 'Attente de transport', 'Attente de transfert',
-  'Attente de place en aval', 'Absence de famille', 'Autre motif non médical']
 
 export default function Discharges() {
   const toast = useToast()
   const [serviceId, setServiceId] = useState('')
   const [blocage, setBlocage] = useState(null)
-  const [motif, setMotif] = useState(MOTIFS_BLOCAGE[0])
+  const [motif, setMotif] = useState(REF.motifsBlocage[0])
   const [sortie, setSortie] = useState(null)
-  const { tri, basculer, trier } = useTri({ cle: 'j1', sens: 'desc' })
+  const [issue, setIssue] = useState('')
+  const { tri, basculer, trier } = useTri({ cle: 'jours', sens: 'desc' })
 
   const services = useApi('/api/services', { hospitalisationSeule: true })
   const sejours = useApi('/api/sejours', { serviceId }, { intervalMs: 60000 })
@@ -28,7 +27,10 @@ export default function Discharges() {
   })
   const tbl = useTableau(items, ['lit', (x) => x.patientNom, (x) => x.serviceNom, (x) => x.motifBlocage])
   const bloques = items.filter((s) => s.motifBlocage)
+  // Les probabilités de sortie n'existent qu'avec un modèle de survie branché ; sinon elles valent null.
+  const modeleSortie = items.some((s) => s.probaJ1 !== null && s.probaJ1 !== undefined)
   const sous48 = items.filter((s) => s.probaJ1 >= 0.5)
+  const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)} %`)
 
   const appliquerBlocage = async () => {
     try {
@@ -48,8 +50,8 @@ export default function Discharges() {
 
   const prononcerSortie = async () => {
     try {
-      await api.post(`/api/sejours/${sortie.id}/sortie`)
-      toast.succes('Sortie enregistrée', `Le lit ${sortie.lit ?? ''} est libéré.`)
+      await api.post(`/api/sejours/${sortie.id}/sortie`, { issue })
+      toast.succes('Sortie enregistrée', `${issue} — le lit ${sortie.lit ?? ''} est libéré.`)
       sejours.recharger()
     } catch (e) { toast.erreur('Sortie refusée', e.message) }
   }
@@ -57,7 +59,8 @@ export default function Discharges() {
   return (
     <>
       <PageHead kicker="Module lits">
-        Probabilité de sortie par jour, pour préparer le dossier, le transport et la famille à l’avance.
+        Probabilité de sortie par jour (affichée une fois le modèle de survie branché), pour préparer
+        le dossier, le transport et la famille à l’avance.
         Un séjour prolongé pour motif non médical est signalé : c’est le levier de capacité le plus
         rapide à actionner.
       </PageHead>
@@ -65,8 +68,10 @@ export default function Discharges() {
       <Etat loading={sejours.loading} error={sejours.error} onRetry={sejours.recharger}>
         <div className="grid g3 section">
           <Kpi label="Patients hospitalisés" value={items.length} note="séjours en cours" />
-          <Kpi label="Sorties probables sous 48 h" value={sous48.length}
-            note={items.length ? `${Math.round((sous48.length / items.length) * 100)} % des séjours` : '—'} />
+          {modeleSortie
+            ? <Kpi label="Sorties probables sous 48 h" value={sous48.length}
+                note={items.length ? `${Math.round((sous48.length / items.length) * 100)} % des séjours` : '—'} />
+            : <Kpi label="Sorties probables sous 48 h" value="—" note="aucun modèle de sortie branché" />}
           <Kpi label="Sorties différées (motif non médical)" value={bloques.length}
             note={items.length ? `≈ ${Math.round((bloques.length / items.length) * 100)} % de capacité mobilisable` : '—'} />
         </div>
@@ -120,11 +125,15 @@ export default function Discharges() {
                     <td>{s.lit ?? <span className="text-muted">—</span>}</td>
                     <td className="num">{s.jours} j<span className="sub">{dateFr(s.entree)}</span></td>
                     <td>
-                      <Bar value={s.probaJ0 * 100} sev={s.probaJ0 >= 0.5 ? 'sev-4' : undefined} />
-                      <span className="sub">{Math.round(s.probaJ0 * 100)} %</span>
+                      {s.probaJ0 === null || s.probaJ0 === undefined
+                        ? <span className="text-muted">—</span>
+                        : <>
+                            <Bar value={s.probaJ0 * 100} sev={s.probaJ0 >= 0.5 ? 'sev-4' : undefined} />
+                            <span className="sub">{pct(s.probaJ0)}</span>
+                          </>}
                     </td>
-                    <td className="num">{Math.round(s.probaJ1 * 100)} %</td>
-                    <td className="num">{Math.round(s.probaJ2 * 100)} %</td>
+                    <td className="num">{pct(s.probaJ1)}</td>
+                    <td className="num">{pct(s.probaJ2)}</td>
                     <td>
                       {s.motifBlocage
                         ? <span className="tag tag-error"><span aria-hidden="true">⚠</span>{s.motifBlocage}</span>
@@ -134,8 +143,8 @@ export default function Discharges() {
                       <div className="row">
                         {s.motifBlocage
                           ? <button className="btn btn-ghost" onClick={() => leverBlocage(s)}>Lever</button>
-                          : <button className="btn btn-ghost" onClick={() => { setBlocage(s); setMotif(MOTIFS_BLOCAGE[0]) }}>Signaler</button>}
-                        <button className="btn btn-ghost" onClick={() => setSortie(s)}>Sortie</button>
+                          : <button className="btn btn-ghost" onClick={() => { setBlocage(s); setMotif(REF.motifsBlocage[0]) }}>Signaler</button>}
+                        <button className="btn btn-ghost" onClick={() => { setSortie(s); setIssue('') }}>Sortie</button>
                       </div>
                     </td>
                   </tr>
@@ -158,7 +167,7 @@ export default function Discharges() {
                 jusqu’à la levée du motif.
               </span>
               <select className="input" value={motif} onChange={(e) => setMotif(e.target.value)}>
-                {MOTIFS_BLOCAGE.map((m) => <option key={m}>{m}</option>)}
+                {REF.motifsBlocage.map((m) => <option key={m}>{m}</option>)}
               </select>
             </>
           }
@@ -166,9 +175,25 @@ export default function Discharges() {
       )}
 
       {sortie && (
-        <Confirm titre="Prononcer la sortie" confirmer="Confirmer la sortie"
-          message={`${sortie.patientNom} quitte ${sortie.serviceNom}${sortie.lit ? ` (lit ${sortie.lit})` : ''}. Le lit redevient immédiatement disponible dans le compteur de capacité.`}
-          onConfirm={prononcerSortie} onClose={() => setSortie(null)} />
+        <Modal titre="Prononcer la sortie" onClose={() => setSortie(null)}
+          actions={<>
+            <button className="btn btn-secondary" onClick={() => setSortie(null)}>Annuler</button>
+            <button className="btn btn-primary" disabled={!issue}
+              onClick={() => { prononcerSortie(); setSortie(null) }}>Confirmer la sortie</button>
+          </>}>
+          <div className="stack-sm">
+            <p style={{ margin: 0 }}>
+              {sortie.patientNom} quitte {sortie.serviceNom}{sortie.lit ? ` (lit ${sortie.lit})` : ''}. Le lit
+              redevient immédiatement disponible dans le compteur de capacité.
+            </p>
+            <Field label="Issue du séjour *" hint="Même vocabulaire que le dataset des registres : un décès ou un transfert n’est pas une sortie ordinaire">
+              <select className="input" value={issue} onChange={(e) => setIssue(e.target.value)}>
+                <option value="">—</option>
+                {REF.issues.map((x) => <option key={x}>{x}</option>)}
+              </select>
+            </Field>
+          </div>
+        </Modal>
       )}
     </>
   )

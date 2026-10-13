@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { ROLES, ROLE_LABEL } from '../lib/referentiels.js'
+import { Icon } from '../components/Icon.jsx'
+import { roleLabel, REF } from '../lib/referentiels.js'
 
 const I = {
   user: 'M16 19v-1.2A3.8 3.8 0 0 0 12.2 14h-4.4A3.8 3.8 0 0 0 4 17.8V19M10 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5',
@@ -12,6 +13,15 @@ const I = {
 const Ico = ({ d }) => (
   <svg width="17" height="17" viewBox="0 0 20 22" fill="none" stroke="currentColor"
     strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+)
+
+/** Bouton « afficher / masquer » posé dans un champ de mot de passe. */
+const Oeil = ({ visible, onToggle }) => (
+  <button type="button" className="voir" onClick={onToggle} tabIndex={-1}
+    aria-label={visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+    aria-pressed={visible} title={visible ? 'Masquer' : 'Afficher'}>
+    <Icon name={visible ? 'eye_off' : 'eye'} />
+  </button>
 )
 
 const emailValide = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim())
@@ -27,6 +37,8 @@ export default function Auth() {
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')
   const [envoi, setEnvoi] = useState(false)
+  const [voirMdp, setVoirMdp] = useState(false)
+  const [voirConfirme, setVoirConfirme] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
   // Changer d'écran remet l'assistant à zéro : jamais d'état à moitié rempli.
@@ -111,7 +123,7 @@ export default function Auth() {
                 <span className="auth-input">
                   <Ico d={I.badge} />
                   <select value={f.role} onChange={set('role')}>
-                    {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                    {Object.keys(REF.roles).map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
                   </select>
                 </span>
               </>
@@ -128,17 +140,19 @@ export default function Auth() {
             {(mode === 'login' || etape === 2) && (
               <span className="auth-input">
                 <Ico d={I.lock} />
-                <input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                <input type={voirMdp ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   value={f.motDePasse} onChange={set('motDePasse')} placeholder="Mot de passe" required
                   minLength={mode === 'signup' ? 8 : undefined} />
+                <Oeil visible={voirMdp} onToggle={() => setVoirMdp((v) => !v)} />
               </span>
             )}
 
             {mode === 'signup' && etape === 2 && (
               <span className="auth-input">
                 <Ico d={I.lock} />
-                <input type="password" autoComplete="new-password" value={f.confirme} onChange={set('confirme')}
-                  placeholder="Confirmer le mot de passe" required minLength={8} />
+                <input type={voirConfirme ? 'text' : 'password'} autoComplete="new-password" value={f.confirme}
+                  onChange={set('confirme')} placeholder="Confirmer le mot de passe" required minLength={8} />
+                <Oeil visible={voirConfirme} onToggle={() => setVoirConfirme((v) => !v)} />
               </span>
             )}
 

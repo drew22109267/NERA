@@ -1,10 +1,10 @@
 import { Field } from './ui.jsx'
-import { ANTECEDENTS, PAIEMENTS } from '../lib/referentiels.js'
+import { REF } from '../lib/referentiels.js'
 
 /** Dossier vierge — même forme que le corps attendu par PUT/POST /api/patients. */
 export const PATIENT_VIDE = {
   nom: '', prenom: '', sexe: 'F', age: '', telephone: '', email: '', quartier: '',
-  arrondissement: '', milieu: 'Urbain', modePaiement: PAIEMENTS[0], contactUrgence: '',
+  arrondissement: '', milieu: 'Urbain', modePaiement: '', contactUrgence: '',
   antecedents: [], allergies: '', consentement: false
 }
 
@@ -58,7 +58,7 @@ export default function PatientForm({ form, setForm, id = 'form-patient', onSubm
         </Field>
         <Field label="Mode de paiement">
           <select className="input" value={form.modePaiement} onChange={set('modePaiement')}>
-            {PAIEMENTS.map((p) => <option key={p}>{p}</option>)}
+            {REF.paiements.map((p) => <option key={p}>{p}</option>)}
           </select>
         </Field>
         <Field label="Contact d’urgence"><input className="input" value={form.contactUrgence} onChange={set('contactUrgence')} placeholder="Nom · téléphone" /></Field>
@@ -68,7 +68,7 @@ export default function PatientForm({ form, setForm, id = 'form-patient', onSubm
       <div>
         <div className="card-kicker">Antécédents connus</div>
         <div className="row">
-          {ANTECEDENTS.map((a) => (
+          {REF.antecedents.map((a) => (
             <label className="check" key={a}>
               <input type="checkbox" checked={form.antecedents.includes(a)} onChange={(e) => cocher(a, e.target.checked)} />
               {a}

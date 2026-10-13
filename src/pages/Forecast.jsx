@@ -27,15 +27,17 @@ export default function Forecast() {
   const seuilBas = param('seuil.occupation.bas', 75)
   const horizonAlerte = param('seuil.horizonJours', 3)
 
-  const risqueAlerte = p?.risques?.[horizonAlerte] ?? p?.risques?.[7] ?? 0
-  const alerte = risqueAlerte * 100 > (100 - seuilOcc)
+  // Sans modèle branché, l'API ne renvoie ni courbe ni risque : rien n'est affiché à leur place.
+  const disponible = !!base.data?.disponible
+  const risqueAlerte = p?.risques?.[horizonAlerte] ?? p?.risques?.[7] ?? null
+  const alerte = disponible && risqueAlerte !== null && risqueAlerte * 100 > (100 - seuilOcc)
   const totalDecomp = (p?.decomposition ?? []).reduce((a, d) => a + d.valeur, 0) || 1
 
   return (
     <>
       <PageHead kicker="Module prévision">
-        Médiane et intervalle à 90 % renvoyés par l’API. Le simulateur applique les mêmes paramètres
-        à un scénario alternatif pour préparer les arbitrages avant qu’ils ne soient urgents.
+        Médiane et intervalle à 90 % renvoyés par le modèle de prévision de l’API. Tant qu’aucun modèle
+        validé n’est branché, aucune courbe n’est affichée ; le simulateur apparaît avec le modèle.
       </PageHead>
 
       <Etat loading={services.loading} error={services.error} onRetry={services.recharger}
@@ -75,7 +77,8 @@ export default function Forecast() {
           <div className="grid g-side section">
             <Panel kicker={`Prévision · ${service?.nom ?? ''}`} title={`Occupation à ${horizon} jours`}>
               <Etat loading={base.loading} error={base.error} onRetry={base.recharger}
-                vide={!p?.points?.length} videTitre="Prévision indisponible">
+                vide={!p?.points?.length} videTitre="Prévision indisponible"
+                videTexte={p?.raison ?? 'Aucun modèle de prévision n’est branché.'}>
                 <>
                   <ForecastChart points={p?.points} capacite={p?.capacite} />
                   <div className="legend" style={{ marginTop: 12 }}>
@@ -92,9 +95,7 @@ export default function Forecast() {
                     ))}
                   </div>
                   <p className="text-muted" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 0 }}>
-                    Modèle actif : {p?.modele}. Le modèle d’apprentissage quantile n’est pas encore branché ;
-                    cette courbe provient d’une règle de tendance et de saisonnalité, et l’intervalle traduit
-                    l’incertitude croissante avec l’horizon.
+                    Modèle actif : {p?.modele}.
                   </p>
                 </>
               </Etat>
@@ -109,7 +110,7 @@ export default function Forecast() {
                       {p?.decomposition.map((d) => (
                         <div key={d.label}>
                           <div className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
-                            <span>{d.label}</span><strong>{d.valeur} lits</strong>
+                            <span>{d.label}</span><strong>{d.valeur}</strong>
                           </div>
                           <div className="bar"><span style={{ width: `${(d.valeur / totalDecomp) * 100}%` }} /></div>
                         </div>
@@ -118,6 +119,7 @@ export default function Forecast() {
                   )}
               </Panel>
 
+              {disponible && (
               <Panel kicker="Simulateur « et si »" title="Scénario alternatif">
                 <div className="stack-sm">
                   <Field label={`Variation des admissions : ${sim.hausseAdmissions > 0 ? '+' : ''}${sim.hausseAdmissions} %`}>
@@ -140,6 +142,7 @@ export default function Forecast() {
                   </p>
                 </div>
               </Panel>
+              )}
             </div>
           </div>
         </>

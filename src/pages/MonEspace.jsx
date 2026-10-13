@@ -5,12 +5,13 @@ import { useApi } from '../api/hooks.js'
 import { PageHead, Panel, CatBadge, Etat, Empty, Kpi, Alert, Bar, StatCard, Pager, RechercheTableau, useTableau } from '../components/ui.jsx'
 import { AreaChart, BarChart, Donut, Gauge, LineChart, Sparkline } from '../components/Charts.jsx'
 import { Icon } from '../components/Icon.jsx'
-import { catDelai, catLabel, dateFr, dateHeureFr, ilYa, minutes, SEV_PAR_NIVEAU } from '../lib/referentiels.js'
-import {
-  MESURES, couvertureDepuisParametres, depenses, derniereMesure, derniersMois, fcfa,
-  mesPassages, recours, risqueReadmission, risquesChroniques, serieConstantes,
-  tarifsDepuisParametres
-} from '../lib/patient.js'
+import { REF, catDelai, catLabel, dateFr, dateHeureFr, ilYa, minutes, SEV_PAR_NIVEAU } from '../lib/referentiels.js'
+
+const fcfa = (m) => `${Math.round(m || 0).toLocaleString('fr-FR').replace(/ | /g, ' ')} FCFA`
+const derniereMesure = (serie, cle) => {
+  for (let i = serie.length - 1; i >= 0; i--) if (serie[i][cle] !== null && serie[i][cle] !== undefined) return serie[i][cle]
+  return null
+}
 
 const COULEUR_NIVEAU = { crit: 'var(--sev-1)', warn: 'var(--sev-3)', ok: 'var(--sev-4)' }
 
@@ -28,34 +29,40 @@ export default function MonEspace() {
   const passages = useApi('/api/passages', { pageSize: 100 }, { intervalMs: 30000, skip: !id })
   const rdv = useApi('/api/rendezvous', null, { skip: !id })
   const messages = useApi('/api/notifications', { pageSize: 5 }, { skip: !id })
-  const parametres = useApi('/api/parametres', null, { skip: !id })
+  // Toute la synthèse (constantes, risques, dépenses, recours) est calculée par l'API.
+  const synthese = useApi(id ? `/api/patients/${id}/synthese` : null, null, { intervalMs: 60000, skip: !id })
 
-  const tous = mesPassages(passages.data?.items ?? [], id)
+  const tous = (passages.data?.items ?? [])
+    .filter((p) => String(p.patientId) === String(id))
+    .slice().sort((a, b) => new Date(b.arrivee) - new Date(a.arrivee))
   const listeRdv = (rdv.data ?? []).filter((r) => !id || String(r.patientId ?? id) === String(id))
 
   const tblPassages = useTableau(tous, ['motif', 'statut', 'reference'])
-  const mois = derniersMois(12)
-  const serie = serieConstantes(tous)
-  const sante = risqueReadmission({ dossier: dossier.data, passages: tous, rdv: listeRdv })
-  const chroniques = risquesChroniques({ dossier: dossier.data, passages: tous })
-  // Tarifs et couverture : uniquement ce que l'administrateur a paramétré.
-  // Sans paramétrage, aucune statistique de dépense n'est affichée.
-  const grille = tarifsDepuisParametres(parametres.data)
-  const tarifs = grille
-    ? { ...grille, couverture: couvertureDepuisParametres(parametres.data, dossier.data?.modePaiement) }
-    : null
-  const cout = depenses({ dossier: dossier.data, passages: tous, rdv: listeRdv, sejours: [], mois, tarifs })
-  const soins = recours({ passages: tous, rdv: listeRdv, mois })
+  const sy = synthese.data
+  const mois = sy?.mois ?? []
+  const serie = sy?.serie ?? []
+  // Valeurs neutres tant que la synthèse n'est pas arrivée : Etat évalue ses
+  // enfants avant d'afficher le chargement, ils ne doivent jamais planter.
+  const sante = sy?.sante ?? { disponible: false, horizon: '30 jours', raison: '' }
+  const santeOk = !!sante.disponible
+  const chroniques = sy?.chroniques ?? []
+  const cout = sy?.cout ?? { configure: false, total: 0, parPoste: [], serieMensuelle: [], parPassage: {} }
+  const soins = sy?.soins ?? {
+    passages12Mois: 0, passagesTotal: 0, serieMensuelle: [], attenteMoyenne: null, attenteSerie: [],
+    motifFrequent: null, categories: [], nonTries: 0,
+    rdv: { honores: 0, manques: 0, annules: 0, aVenir: 0, total: 0, assiduite: null }
+  }
 
   const enCours = tous.find((p) => ['À trier', 'En attente', 'En cours'].includes(p.statut))
   const prochain = listeRdv
     .filter((r) => r.statut !== 'Annulé' && new Date(r.date) >= new Date(new Date().toDateString()))
     .sort((a, b) => new Date(a.date) - new Date(b.date))[0]
 
-  const m = MESURES.find((x) => x.cle === mesure) ?? MESURES[0]
+  const MESURES = REF.mesures.map((x) => ({ ...x, normal: x.normalMin != null ? { min: x.normalMin, max: x.normalMax } : null }))
+  const m = MESURES.find((x) => x.cle === mesure) ?? MESURES[0] ?? { cle: 'pas', label: '', unite: '' }
   const labelsSerie = serie.map((s) => new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }))
-  const valeursMesure = serie.map((s) => s[m.cle])
-  const aDesMesures = valeursMesure.some((v) => v !== null)
+  const valeursMesure = serie.map((s) => s[m.cle] ?? null)
+  const aDesMesures = valeursMesure.some((v) => v != null)
 
   if (!id) {
     return (
@@ -109,31 +116,33 @@ export default function MonEspace() {
         </Panel>
       )}
 
-      <Etat loading={passages.loading || dossier.loading} error={passages.error ?? dossier.error}
-        onRetry={passages.recharger}>
+      <Etat loading={passages.loading || dossier.loading || (synthese.loading && !sy)}
+        error={passages.error ?? dossier.error ?? synthese.error}
+        onRetry={() => { passages.recharger(); synthese.recharger() }}
+        vide={!sy} videTitre="Synthèse indisponible">
         <>
           {/* ── Quatre indicateurs de tête ───────────────────────────── */}
           <div className="grid g4 section">
             <StatCard title="Passages sur 12 mois" value={soins.passages12Mois}
               delta={`${soins.passagesTotal} au total`} deltaDir="up"
               deltaNote={soins.motifFrequent ? `Motif le plus fréquent : ${soins.motifFrequent}` : 'Aucun motif enregistré'}
-              visual={<Sparkline data={soins.serieMensuelle} color="var(--viz-1)" />} />
+              visual={soins.passagesTotal ? <Sparkline data={soins.serieMensuelle} color="var(--viz-1)" /> : null} />
 
             <StatCard title="Attente moyenne aux urgences"
-              value={soins.attenteMoyenne === null ? '—' : minutes(soins.attenteMoyenne)}
-              delta={soins.rdv.assiduite === null ? 'aucun rendez-vous' : `${soins.rdv.assiduite} % de rendez-vous honorés`}
-              deltaDir={soins.rdv.assiduite !== null && soins.rdv.assiduite >= 80 ? 'up' : 'down'}
+              value={soins.attenteMoyenne == null ? '—' : minutes(soins.attenteMoyenne)}
+              delta={soins.rdv.assiduite == null ? 'aucun rendez-vous' : `${soins.rdv.assiduite} % de rendez-vous honorés`}
+              deltaDir={soins.rdv.assiduite != null && soins.rdv.assiduite >= 80 ? 'up' : 'down'}
               deltaNote="Moyenne de vos propres passages"
-              visual={<Sparkline data={soins.attenteSerie.length ? soins.attenteSerie : [0, 0]} color="var(--viz-2)" />} />
+              visual={soins.attenteSerie.length ? <Sparkline data={soins.attenteSerie} color="var(--viz-2)" /> : null} />
 
             {cout.configure ? (
               <StatCard title="Dépenses estimées" value={fcfa(cout.total).replace(' FCFA', '')} sub=" FCFA"
                 delta={`${fcfa(cout.resteACharge)} à votre charge`}
-                deltaDir={cout.partCouverte !== null && cout.partCouverte >= 0.7 ? 'up' : 'down'}
-                deltaNote={cout.partCouverte === null
+                deltaDir={cout.partCouverte != null && cout.partCouverte >= 0.7 ? 'up' : 'down'}
+                deltaNote={cout.partCouverte == null
                   ? `Couverture non paramétrée · ${cout.modePaiement}`
                   : `Prise en charge ${Math.round(cout.partCouverte * 100)} % · ${cout.modePaiement}`}>
-                {cout.partCouverte !== null && (
+                {cout.partCouverte != null && (
                   <div style={{ marginTop: 12, maxWidth: 190 }}>
                     <Bar value={(1 - cout.partCouverte) * 100} sev={cout.partCouverte >= 0.7 ? 'sev-4' : 'sev-3'} />
                   </div>
@@ -146,10 +155,13 @@ export default function MonEspace() {
                 deltaNote={soins.rdv.manques ? `${soins.rdv.manques} rendez-vous manqué(s)` : 'aucun rendez-vous manqué'} />
             )}
 
-            <StatCard title={`Risque de réadmission (${sante.horizon})`} value={sante.score} sub="/100"
-              delta={sante.libelle} deltaDir={sante.niveau === 'ok' ? 'up' : 'down'}
-              deltaNote={`Confiance ${Math.round(sante.confiance * 100)} %`}
-              visual={<Donut value={sante.score} size={86} stroke={11} color={COULEUR_NIVEAU[sante.niveau]} label="risque" />} />
+            {santeOk
+              ? <StatCard title={`Risque de réadmission (${sante.horizon})`} value={sante.score} sub="/100"
+                  delta={sante.libelle} deltaDir={sante.niveau === 'ok' ? 'up' : 'down'}
+                  deltaNote={`Confiance ${Math.round(sante.confiance * 100)} %`}
+                  visual={<Donut value={sante.score} size={86} stroke={11} color={COULEUR_NIVEAU[sante.niveau]} label="risque" />} />
+              : <StatCard title={`Risque de réadmission (${sante.horizon})`} value="—"
+                  deltaNote="Aucun modèle de réadmission branché" />}
           </div>
 
           {/* ── Constantes & risque de réadmission ───────────────────── */}
@@ -188,6 +200,9 @@ export default function MonEspace() {
             </Panel>
 
             <Panel kicker="Prévention" title={`Risque de réadmission à ${sante.horizon}`}>
+              {!santeOk ? (
+                <Empty titre="Pas de score">{sante.raison || 'Aucun modèle de réadmission n’est branché.'}</Empty>
+              ) : (<>
               <div style={{ display: 'grid', placeItems: 'center', marginBottom: 6 }}>
                 <Gauge value={sante.score} size={186} color={COULEUR_NIVEAU[sante.niveau]}
                   label={sante.libelle} sousTitre={`Confiance ${Math.round(sante.confiance * 100)} %`} />
@@ -208,6 +223,7 @@ export default function MonEspace() {
                   Mesures manquantes : {sante.manquants.join(', ')}. Elles abaissent la confiance du score.
                 </p>
               )}
+              </>)}
             </Panel>
           </div>
 
@@ -223,14 +239,15 @@ export default function MonEspace() {
                         <span className="sub">{r.detail}</span>
                       </span>
                       <span className="num">
-                        <span className={`tag tag-${SEV_PAR_NIVEAU[r.niveau]}`}>
-                          {r.niveau === 'crit' ? 'À surveiller de près' : r.niveau === 'warn' ? 'Sous surveillance' : 'Stable'}
-                        </span>
-                        <strong>{r.score}/100</strong>
+                        {r.niveau
+                          ? <span className={`tag tag-${SEV_PAR_NIVEAU[r.niveau]}`}>
+                              {r.niveau === 'crit' ? 'Au-delà du seuil d’alerte' : r.niveau === 'warn' ? 'Au-delà du seuil' : 'Dans la cible'}
+                            </span>
+                          : <span className="tag tag-neutral">Non mesuré</span>}
                       </span>
-                      <Bar value={r.score} sev={SEV_PAR_NIVEAU[r.niveau]} />
                       <span className="text-muted" style={{ gridColumn: '1 / -1', order: 4, fontSize: 12 }}>
                         {r.declare ? 'Antécédent déclaré' : 'Piste de dépistage'} · {r.suivi}
+                        {r.repere && <> · Repère : {r.repere}</>}
                       </span>
                     </div>
                   ))}
@@ -242,7 +259,7 @@ export default function MonEspace() {
                 </Empty>
               )}
               <p className="text-muted" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
-                Ces scores sont des aides au suivi calculées sur vos constantes et vos passages.
+                Niveaux obtenus en comparant votre dernière mesure aux seuils cliniques publiés indiqués.
                 Ils ne remplacent pas un diagnostic : parlez-en à votre médecin.
               </p>
             </Panel>
@@ -412,7 +429,7 @@ export default function MonEspace() {
                           <td>{p.statut}</td>
                           {cout.configure && (
                             <td className="num">
-                              {fcfa(depenses({ dossier: dossier.data, passages: [p], rdv: [], sejours: [], mois, tarifs }).total)}
+                              {fcfa(cout.parPassage?.[String(p.id)] ?? 0)}
                             </td>
                           )}
                         </tr>
@@ -444,12 +461,12 @@ export default function MonEspace() {
               <div className="stack-sm">
                 {MESURES.map((x) => {
                   const v = derniereMesure(serie, x.cle)
-                  const hors = v !== null && x.normal && (v < x.normal.min || v > x.normal.max)
+                  const hors = v != null && x.normal && (v < x.normal.min || v > x.normal.max)
                   return (
                     <div className="row" key={x.cle} style={{ justifyContent: 'space-between' }}>
                       <span className="text-muted" style={{ fontSize: 13 }}>{x.label}</span>
                       <strong style={{ color: hors ? 'var(--sev-1-ink)' : undefined }}>
-                        {v === null ? 'non mesuré' : `${v}${x.unite}`}
+                        {v == null ? 'non mesuré' : `${v}${x.unite}`}
                       </strong>
                     </div>
                   )

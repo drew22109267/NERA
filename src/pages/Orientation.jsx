@@ -4,7 +4,7 @@ import { api } from '../api/client.js'
 import { useApi } from '../api/hooks.js'
 import { PageHead, Panel, Field, CatSelect, Etat, Empty, Alert, Bar } from '../components/ui.jsx'
 import { Icon } from '../components/Icon.jsx'
-import { ANTECEDENTS, SEV_PAR_NIVEAU, LIBELLE_TENSION } from '../lib/referentiels.js'
+import { SEV_PAR_NIVEAU, LIBELLE_TENSION, REF } from '../lib/referentiels.js'
 
 /**
  * Redistribution des patients : la règle clinique croisée avec la disponibilité
@@ -14,7 +14,8 @@ export default function Orientation() {
   const motifs = useApi('/api/orientation/motifs')
   const services = useApi('/api/services', { hospitalisationSeule: true })
 
-  const [f, setF] = useState({ motif: '', age: '', sexe: 'F', categorie: null, antecedents: [] })
+  const [f, setF] = useState({ motif: '', age: '', sexe: 'F', categorie: null, antecedents: [],
+    etablissementId: REF.etablissements.length === 1 ? String(REF.etablissements[0].id) : '' })
   const [res, setRes] = useState(null)
   const [chargement, setChargement] = useState(false)
   const [erreur, setErreur] = useState(null)
@@ -26,12 +27,13 @@ export default function Orientation() {
       setRes(await api.get('/api/orientation', {
         motif: f.motif, age: Number(f.age), sexe: f.sexe,
         categorie: f.categorie ?? undefined,
-        antecedents: f.antecedents.join(',') || undefined
+        antecedents: f.antecedents.join(',') || undefined,
+        etablissementId: f.etablissementId || undefined
       }))
     } catch (e2) { setErreur(e2.message) } finally { setChargement(false) }
   }
 
-  const parPole = (services.data ?? []).reduce((acc, s) => {
+  const parPole = (services.data ?? []).filter((s) => !f.etablissementId || String(s.etablissementId) === f.etablissementId).reduce((acc, s) => {
     (acc[s.pole] ??= []).push(s)
     return acc
   }, {})
@@ -48,6 +50,15 @@ export default function Orientation() {
           <Etat loading={motifs.loading} error={motifs.error} onRetry={motifs.recharger}>
             <form className="stack" onSubmit={lancer}>
               <div className="form-grid">
+                {REF.etablissements.length > 1 && (
+                  <Field label="Hôpital">
+                    <select className="input" required value={f.etablissementId}
+                      onChange={(e) => setF({ ...f, etablissementId: e.target.value })}>
+                      <option value="">Choisir l’hôpital…</option>
+                      {REF.etablissements.map((h) => <option key={h.id} value={h.id}>{h.nom || h.code}</option>)}
+                    </select>
+                  </Field>
+                )}
                 <Field label="Motif de recours">
                   <select className="input" value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })} required>
                     <option value="">Choisir un motif…</option>
@@ -72,7 +83,7 @@ export default function Orientation() {
               <div>
                 <div className="card-kicker">Antécédents connus</div>
                 <div className="row">
-                  {ANTECEDENTS.map((a) => (
+                  {REF.antecedents.map((a) => (
                     <label className="check" key={a}>
                       <input type="checkbox" checked={f.antecedents.includes(a)}
                         onChange={(e) => setF({

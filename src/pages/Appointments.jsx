@@ -4,11 +4,9 @@ import { useApi } from '../api/hooks.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, Field, Etat, Empty, Alert, Pager, RechercheTableau, useTableau } from '../components/ui.jsx'
-import { dateFr } from '../lib/referentiels.js'
+import { REF, dateFr } from '../lib/referentiels.js'
 
 const ONGLETS = [['rdv', 'Consultations'], ['bloc', 'Bloc opératoire'], ['suivi', 'Relances']]
-const PERTE = ['Léger', 'Modéré', 'Sévère']
-const SALLES = ['Salle 1', 'Salle 2', 'Salle 3', 'Salle septique']
 const aujourdhui = () => new Date().toISOString().slice(0, 10)
 
 export default function Appointments() {
@@ -23,7 +21,7 @@ export default function Appointments() {
   const [f, setF] = useState({ patientId: '', serviceId: '', date: '', heure: '', motif: '' })
   const [c, setC] = useState({
     patientId: '', serviceId: '', date: '', heure: '08:00', motif: '', dureeMinutes: 60,
-    litAvalServiceId: '', dureeSejourJours: 3, perteDeChance: 'Modéré', salleBloc: SALLES[0]
+    litAvalServiceId: '', dureeSejourJours: 3, perteDeChance: 'Modéré', salleBloc: REF.sallesBloc[0] ?? ''
   })
   const [envoi, setEnvoi] = useState(false)
 
@@ -86,7 +84,7 @@ export default function Appointments() {
       <PageHead kicker={estPatient ? 'Mes rendez-vous' : 'Module rendez-vous & programmation'}>
         {estPatient
           ? 'Demandez un créneau et suivez vos rendez-vous. Une demande est confirmée par le service après vérification.'
-          : 'Les créneaux affichent le risque de saturation du service d’aval à la date choisie. Rappels SMS à J-2 et J-0 ; annulation par SMS (« ANNULER » / « REPORTER »).'}
+          : 'Les créneaux signalent le risque de saturation du service d’aval à la date choisie dès qu’un modèle de prévision est branché. Rappels SMS à J-2 et J-0 ; annulation par SMS (« ANNULER » / « REPORTER »).'}
       </PageHead>
 
       {!estPatient && demandes.length > 0 && (
@@ -296,7 +294,7 @@ export default function Appointments() {
                 </Field>
                 <Field label="Salle">
                   <select className="input" value={c.salleBloc} onChange={(e) => setC({ ...c, salleBloc: e.target.value })}>
-                    {SALLES.map((s) => <option key={s}>{s}</option>)}
+                    {REF.sallesBloc.length ? REF.sallesBloc.map((s) => <option key={s}>{s}</option>) : <option value="">Aucune salle paramétrée</option>}
                   </select>
                 </Field>
                 <Field label="Date *">
@@ -325,7 +323,7 @@ export default function Appointments() {
                 </Field>
                 <Field label="Perte de chance en cas de report" hint="Alimente l’arbitrage en cas de tension">
                   <select className="input" value={c.perteDeChance} onChange={(e) => setC({ ...c, perteDeChance: e.target.value })}>
-                    {PERTE.map((p) => <option key={p}>{p}</option>)}
+                    {REF.gravites.map((p) => <option key={p}>{p}</option>)}
                   </select>
                 </Field>
               </div>

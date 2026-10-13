@@ -19,6 +19,7 @@ export const NAV = [
   { group: 'Pilotage', items: [
     { to: '/rapports', label: 'Rapports & indicateurs', icon: 'report', roles: ['direction', 'gestionnaire', 'data', 'admin'] },
     { to: '/qualite', label: 'Qualité, audit & XAI', icon: 'shield', roles: ['data', 'admin', 'direction'] },
+    { to: '/donnees', label: 'Dataset de recherche', icon: 'file', roles: ['data', 'admin', 'direction'] },
     { to: '/admin', label: 'Administration', icon: 'settings', roles: ['admin'] }
   ]}
 ]

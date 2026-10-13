@@ -4,7 +4,7 @@ import { useApi } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { PageHead, Panel, Field, Kpi, Etat, Pager, Bar, PAR_PAGE, RechercheTableau } from '../components/ui.jsx'
-import { GRAVITES, DEVENIRS, dateHeureFr } from '../lib/referentiels.js'
+import { dateHeureFr, REF } from '../lib/referentiels.js'
 
 const SEV_GRAVITE = { Sévère: 'sev-1', Modéré: 'sev-3', Léger: 'sev-4' }
 
@@ -30,7 +30,7 @@ export default function UnmetDemand() {
   const maxService = parService[0]?.[1] || 1
 
   const ouvrir = () => setForm({
-    serviceId: services.data?.[0]?.id ?? '', motif: '', gravite: 'Modéré', devenir: DEVENIRS[0], patientId: ''
+    serviceId: services.data?.[0]?.id ?? '', motif: '', gravite: 'Modéré', devenir: REF.devenirs[0], patientId: ''
   })
 
   const soumettre = async (e) => {
@@ -143,12 +143,12 @@ export default function UnmetDemand() {
               </Field>
               <Field label="Gravité estimée *">
                 <select className="input" value={form.gravite} onChange={(e) => setForm({ ...form, gravite: e.target.value })}>
-                  {GRAVITES.map((g) => <option key={g}>{g}</option>)}
+                  {REF.gravites.map((g) => <option key={g}>{g}</option>)}
                 </select>
               </Field>
               <Field label="Devenir du patient *">
                 <select className="input" value={form.devenir} onChange={(e) => setForm({ ...form, devenir: e.target.value })}>
-                  {DEVENIRS.map((d) => <option key={d}>{d}</option>)}
+                  {REF.devenirs.map((d) => <option key={d}>{d}</option>)}
                 </select>
               </Field>
               <Field label="Identifiant de dossier" hint="Laisser vide si le patient n’a pas été enregistré">

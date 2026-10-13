@@ -4,9 +4,9 @@ import { api } from '../api/client.js'
 import { useApi, useTri } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, Field, CatBadge, Etat, Alert, Pager, Th, PAR_PAGE } from '../components/ui.jsx'
-import { minutes, catDelai } from '../lib/referentiels.js'
+import { REF, minutes, catDelai } from '../lib/referentiels.js'
 
-const STATUTS = ['Tous', 'À trier', 'En attente', 'En cours', 'Vu']
+const STATUTS = () => ['Tous', ...REF.statutsPassage]
 
 export default function Queue() {
   const toast = useToast()
@@ -58,7 +58,7 @@ export default function Queue() {
       <div className="toolbar">
         <Field label="Statut">
           <select className="input" value={statut} onChange={(e) => changer(setStatut)(e.target.value)}>
-            {STATUTS.map((s) => <option key={s}>{s}</option>)}
+            {STATUTS().map((s) => <option key={s}>{s}</option>)}
           </select>
         </Field>
         <Field label="Service visé">

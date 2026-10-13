@@ -5,16 +5,8 @@ import { useAuth } from '../auth/AuthContext.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, Field, Etat, Pager, PAR_PAGE, RechercheTableau } from '../components/ui.jsx'
 import { Icon } from '../components/Icon.jsx'
-import { ilYa } from '../lib/referentiels.js'
+import { REF, ilYa } from '../lib/referentiels.js'
 
-const CANAUX = [
-  ['SMS', 'Canal principal patient — rappels de rendez-vous, catégorie de triage, temps d’attente estimé.'],
-  ['USSD', 'Prise et confirmation de rendez-vous sans smartphone, pré-triage à distance.'],
-  ['Application', 'Notifications internes au personnel, sur poste fixe et tablette.'],
-  ['Affichage salle d’attente', 'Alimenté par la file d’attente, sans aucune donnée nominative.']
-]
-const TYPES = ['Rappel RDV', 'Alerte capacité', 'Réévaluation', 'Information', 'Rapport']
-const DESTINATAIRES = ['Patient', 'Infirmier de triage', 'Médecin', 'Gestionnaire de lits', 'Direction', 'Data manager']
 
 export default function Notifications() {
   const { user } = useAuth()
@@ -23,7 +15,7 @@ export default function Notifications() {
   const [dest, setDest] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const [msg, setMsg] = useState({ destinataire: 'Patient', type: 'Rappel RDV', texte: '', canal: 'SMS' })
+  const [msg, setMsg] = useState({ destinataire: REF.destinataires[0] ?? '', type: REF.typesNotification[0] ?? '', texte: '', canal: REF.canaux[0] ?? '' })
   const [envoi, setEnvoi] = useState(false)
 
   const liste = useApi('/api/notifications', { destinataire: dest, recherche: q, page, pageSize: PAR_PAGE }, { intervalMs: 45000 })
@@ -137,15 +129,15 @@ export default function Notifications() {
 
           <Panel kicker="Canaux" title="Acheminement">
             <div className="stack-sm">
-              {CANAUX.map(([nom, desc]) => (
+              {REF.canaux.map((nom) => (
                 <div key={nom} style={{ display: 'flex', gap: 10 }}>
                   <span style={{
-                    width: 30, height: 30, borderRadius: 8, flex: 'none', display: 'grid', placeItems: 'center',
+                    width: 30, height: 30, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
                     background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--muted)'
                   }}><Icon name={nom === 'SMS' || nom === 'USSD' ? 'phone' : nom === 'Application' ? 'bell' : 'list'} /></span>
                   <span>
                     <strong style={{ fontSize: 13.5 }}>{nom}</strong>
-                    <span className="text-muted" style={{ display: 'block', fontSize: 12.5 }}>{desc}</span>
+                    <span className="text-muted" style={{ display: 'block', fontSize: 12.5 }}>Canal configuré dans Administration</span>
                   </span>
                 </div>
               ))}
@@ -162,12 +154,12 @@ export default function Notifications() {
                 <Field label="Destinataire">
                   <select className="input" value={msg.destinataire}
                     onChange={(e) => setMsg({ ...msg, destinataire: e.target.value })}>
-                    {DESTINATAIRES.map((d) => <option key={d}>{d}</option>)}
+                    {REF.destinataires.map((d) => <option key={d}>{d}</option>)}
                   </select>
                 </Field>
                 <Field label="Type">
                   <select className="input" value={msg.type} onChange={(e) => setMsg({ ...msg, type: e.target.value })}>
-                    {TYPES.map((t) => <option key={t}>{t}</option>)}
+                    {REF.typesNotification.map((t) => <option key={t}>{t}</option>)}
                   </select>
                 </Field>
                 <Field label="Canal">

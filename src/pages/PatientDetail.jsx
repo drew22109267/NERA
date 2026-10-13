@@ -7,12 +7,12 @@ import { useToast } from '../components/Toast.jsx'
 import { Confirm } from '../components/Modal.jsx'
 import { PageHead, Panel, CatBadge, Etat, Empty, Bar, Alert, Pager, RechercheTableau, useTableau } from '../components/ui.jsx'
 import { Icon } from '../components/Icon.jsx'
-import { CATEGORIES_PIECE, dateFr, dateHeureFr, ilYa, initiales } from '../lib/referentiels.js'
+import { dateFr, dateHeureFr, ilYa, initiales, REF } from '../lib/referentiels.js'
 
 const Info = ({ icon, k, v }) => (
   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
     <span style={{
-      width: 32, height: 32, borderRadius: 9, flex: 'none', display: 'grid', placeItems: 'center',
+      width: 32, height: 32, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
       background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--muted)'
     }}><Icon name={icon} /></span>
     <span style={{ minWidth: 0 }}>
@@ -29,7 +29,7 @@ export default function PatientDetail() {
   const { user } = useAuth()
   const toast = useToast()
   const fichier = useRef(null)
-  const [categorie, setCategorie] = useState(CATEGORIES_PIECE[0])
+  const [categorie, setCategorie] = useState(REF.categoriesPiece[0])
   const [envoi, setEnvoi] = useState(false)
   const [confirmer, setConfirmer] = useState(false)
 
@@ -97,7 +97,7 @@ export default function PatientDetail() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 'var(--space-6)', alignItems: 'start' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{
-                      width: 110, height: 124, borderRadius: 14, background: 'var(--brand-soft)',
+                      width: 110, height: 124, borderRadius: 6, background: 'var(--brand-soft)',
                       color: 'var(--brand-ink)', display: 'grid', placeItems: 'center',
                       fontSize: 32, fontWeight: 700
                     }}>{initiales(`${p?.prenom} ${p?.nom}`)}</div>
@@ -132,7 +132,7 @@ export default function PatientDetail() {
                       {p?.antecedents.map((a) => (
                         <div key={a} style={{ display: 'flex', gap: 10 }}>
                           <span style={{
-                            width: 32, height: 32, borderRadius: 9, flex: 'none', display: 'grid', placeItems: 'center',
+                            width: 32, height: 32, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
                             background: 'var(--brand-soft)', color: 'var(--brand-ink)'
                           }}><Icon name="heart" /></span>
                           <span>
@@ -188,7 +188,7 @@ export default function PatientDetail() {
                   <div className="row">
                     <select className="input" style={{ minHeight: 36, width: 'auto' }}
                       value={categorie} onChange={(e) => setCategorie(e.target.value)}>
-                      {CATEGORIES_PIECE.map((c) => <option key={c}>{c}</option>)}
+                      {REF.categoriesPiece.map((c) => <option key={c}>{c}</option>)}
                     </select>
                     <button className="btn btn-secondary btn-sm" disabled={envoi}
                       onClick={() => fichier.current?.click()}>
@@ -274,7 +274,7 @@ export default function PatientDetail() {
                       {mesSejours.map((s) => (
                         <div key={s.id} className="row" style={{ gap: 10 }}>
                           <span style={{
-                            width: 34, height: 34, borderRadius: 9, flex: 'none', display: 'grid', placeItems: 'center',
+                            width: 34, height: 34, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
                             background: 'var(--viz-1-soft)', color: '#12609c'
                           }}><Icon name="bed" /></span>
                           <span style={{ flex: 1, minWidth: 0 }}>

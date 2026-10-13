@@ -92,7 +92,7 @@ sens selon l'écran :
    distinguer les teintes (deutéranopie).
 3. **Séries de données** (`--viz-*`) — graphiques, sans aucun sens clinique.
 
-Une anomalie système porte un contour et un triangle ⚠ ; une catégorie de triage porte
+Une anomalie système porte un contour et un triangle d'avertissement ; une catégorie de triage porte
 un chiffre dans un disque plein. Deux formes distinctes, jamais confondues.
 
 ## Points connus, à dire en soutenance

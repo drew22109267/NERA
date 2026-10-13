@@ -1,60 +1,34 @@
-/** Référentiels d'interface. Aucune donnée de patient : tout vient de l'API. */
+/**
+ * Référentiels d'interface.
+ *
+ * Aucune liste métier n'est écrite ici : tout est chargé depuis
+ * GET /api/referentiels au démarrage (voir ReferentielsContext) et déposé dans
+ * `REF`. Les énumérations du domaine (statuts, catégories, bornes) appartiennent
+ * au serveur ; les listes propres à l'établissement (salles, motifs, modes
+ * d'entrée…) sont saisies dans Administration. Ce module ne garde que des
+ * fonctions de présentation.
+ */
 
-export const ROLES = ['accueil', 'infirmier', 'medecin', 'gestionnaire', 'direction', 'data', 'admin', 'patient']
-
-export const ROLE_LABEL = {
-  accueil: 'Agent d’accueil',
-  infirmier: 'Infirmier de triage',
-  medecin: 'Médecin',
-  gestionnaire: 'Gestionnaire de lits',
-  direction: 'Direction',
-  data: 'Data manager',
-  admin: 'Administrateur',
-  patient: 'Patient'
+/** Référentiels courants — remplis par ReferentielsProvider avant tout rendu. */
+export let REF = {
+  roles: {}, categories: [], bornes: {}, mesures: [],
+  statutsPassage: [], statutsRendezVous: [], avpu: [], gravites: [], devenirs: [],
+  categoriesPiece: [], actionsDecision: [], typesAudit: [],
+  modesEntree: [], motifsBlocage: [], typesNotification: [], sallesBloc: [],
+  antecedents: [], paiements: [], canaux: [], destinataires: [], motifsRecours: [],
+  categoriesDiagnostic: [], issues: [], etablissements: [],
+  services: [], vierge: true
 }
+export const setReferentiels = (r) => { REF = { ...REF, ...r } }
 
-export const CATEGORIES = [
-  { id: 1, label: 'Immédiat', delaiMin: 0 },
-  { id: 2, label: 'Très urgent', delaiMin: 10 },
-  { id: 3, label: 'Urgent', delaiMin: 60 },
-  { id: 4, label: 'Non urgent', delaiMin: 240 }
-]
-export const catLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label ?? '—'
-export const catDelai = (id) => CATEGORIES.find((c) => c.id === id)?.delaiMin ?? 0
+export const roleLabel = (r) => REF.roles?.[r] ?? r
+export const catLabel = (id) => REF.categories.find((c) => c.id === id)?.label ?? '—'
+export const catDelai = (id) => REF.categories.find((c) => c.id === id)?.delaiMin ?? 0
 
-export const AVPU = ['Alerte', 'Réponse à la voix', 'Réponse à la douleur', 'Non évalué']
-export const MODES_ENTREE = ['À pied', 'Ambulance', 'Référé par un centre de santé', 'Transfert d’un autre hôpital']
-export const ANTECEDENTS = ['HTA', 'Diabète', 'Drépanocytose', 'VIH', 'Asthme', 'Insuffisance rénale', 'Épilepsie', 'Grossesse en cours', 'Cardiopathie', 'Autre']
-export const PAIEMENTS = ['Paiement direct', 'Mutuelle', 'Employeur', 'Indigent', 'Gratuité ciblée']
-export const GRAVITES = ['Léger', 'Modéré', 'Sévère']
-export const DEVENIRS = ['Réorienté (centre de santé)', 'Transféré (autre hôpital)', 'Reparti sans soins', 'Admis plus tard', 'Inconnu']
-export const CATEGORIES_PIECE = ['Photo de plaie', 'Résultat de laboratoire', 'Imagerie', 'Compte rendu', 'Autre']
-
-export const ACTIONS_DECISION = [
-  'Admettre immédiatement dans le service',
-  'Admettre en zone de débordement',
-  'Orienter vers un autre établissement',
-  'Différer avec nouvelle date',
-  'Sortie après consultation'
-]
-
-/** Bornes physiologiques — identiques à celles validées côté API. */
-export const BORNES = {
-  pas: { min: 30, max: 300, unite: 'mmHg', label: 'PA systolique' },
-  pad: { min: 10, max: 200, unite: 'mmHg', label: 'PA diastolique' },
-  fc: { min: 20, max: 250, unite: '/min', label: 'Fréquence cardiaque' },
-  fr: { min: 4, max: 80, unite: '/min', label: 'Fréquence respiratoire' },
-  temperature: { min: 25, max: 45, unite: '°C', label: 'Température', pas: 0.1 },
-  spo2: { min: 40, max: 100, unite: '%', label: 'SpO₂' },
-  glycemie: { min: 0.1, max: 10, unite: 'g/L', label: 'Glycémie capillaire', pas: 0.1 },
-  poids: { min: 0.5, max: 300, unite: 'kg', label: 'Poids', pas: 0.1 },
-  glasgow: { min: 3, max: 15, unite: '/15', label: 'Score de Glasgow' },
-  eva: { min: 0, max: 10, unite: '/10', label: 'Douleur EVA' }
-}
-
+/** Validation d'une constante contre les bornes renvoyées par l'API. */
 export const validerBorne = (champ, valeur) => {
   if (valeur === '' || valeur === null || valeur === undefined) return null
-  const b = BORNES[champ]
+  const b = REF.bornes?.[champ]
   if (!b) return null
   const n = Number(valeur)
   if (Number.isNaN(n)) return 'Valeur numérique attendue.'

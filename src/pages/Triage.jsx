@@ -4,7 +4,7 @@ import { api } from '../api/client.js'
 import { useApi } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, Field, CatBadge, CatSelect, Etat, Alert, Empty } from '../components/ui.jsx'
-import { AVPU, BORNES, validerBorne, catDelai, catLabel } from '../lib/referentiels.js'
+import { validerBorne, catDelai, catLabel, REF } from '../lib/referentiels.js'
 
 const CHAMPS = ['pas', 'pad', 'fc', 'fr', 'temperature', 'spo2', 'glycemie', 'poids']
 const vide = { pas: '', pad: '', fc: '', fr: '', temperature: '', spo2: '', glycemie: '', poids: '', avpu: 'Alerte', glasgow: '', eva: '', categorieManuelle: null }
@@ -58,17 +58,22 @@ export default function Triage() {
     return () => clearTimeout(t)
   }, [corps, erreurs, id, passage.data])
 
+  // Sans modèle branché, l'API ne propose aucune catégorie : c'est le tri de l'infirmier qui est retenu.
+  const modele = !!eval_?.disponible
+
   const valider = async () => {
     if (Object.keys(erreurs).length) { toast.erreur('Constantes hors plage', 'Corrigez les valeurs signalées.'); return }
-    if (correction.active && (!correction.cat || !correction.motif.trim())) return
+    if (modele && correction.active && (!correction.cat || !correction.motif.trim())) return
+    if (!modele && !v.categorieManuelle) return
     setEnvoi(true)
     try {
       await api.post(`/api/passages/${id}/triage`, {
         constantes: corps,
-        categorieRetenue: correction.active ? correction.cat : (eval_?.categorie ?? null),
-        motifCorrection: correction.active ? correction.motif : null
+        categorieRetenue: !modele ? v.categorieManuelle
+          : correction.active ? correction.cat : (eval_?.categorie ?? null),
+        motifCorrection: modele && correction.active ? correction.motif : null
       })
-      toast.succes('Triage enregistré', correction.active ? 'Correction motivée journalisée.' : 'Catégorie validée et journalisée.')
+      toast.succes('Triage enregistré', modele && correction.active ? 'Correction motivée journalisée.' : 'Catégorie enregistrée et journalisée.')
       nav('/file')
     } catch (e) {
       toast.erreur('Enregistrement refusé', e.message)
@@ -96,10 +101,10 @@ export default function Triage() {
                 <Panel kicker="Constantes vitales" title="Mesures">
                   <div className="form-grid">
                     {CHAMPS.map((c) => (
-                      <Field key={c} label={`${BORNES[c].label} (${BORNES[c].unite})`}
-                        hint={`Plage acceptée : ${BORNES[c].min}–${BORNES[c].max}`} erreur={erreurs[c]}>
+                      <Field key={c} label={`${REF.bornes[c].label} (${REF.bornes[c].unite})`}
+                        hint={`Plage acceptée : ${REF.bornes[c].min}–${REF.bornes[c].max}`} erreur={erreurs[c]}>
                         <input className={`input${erreurs[c] ? ' invalid' : ''}`} type="number"
-                          min={BORNES[c].min} max={BORNES[c].max} step={BORNES[c].pas ?? 1}
+                          min={REF.bornes[c].min} max={REF.bornes[c].max} step={REF.bornes[c].pas ?? 1}
                           value={v[c]} onChange={(e) => setV({ ...v, [c]: e.target.value })} />
                       </Field>
                     ))}
@@ -108,9 +113,9 @@ export default function Triage() {
 
                 <Panel kicker="Conscience & douleur" title="Évaluation clinique">
                   <div className="form-grid">
-                    <Field label="AVPU" hint="« Non évalué » est une valeur explicite">
+                    <Field label="REF.avpu" hint="« Non évalué » est une valeur explicite">
                       <select className="input" value={v.avpu} onChange={(e) => setV({ ...v, avpu: e.target.value })}>
-                        {AVPU.map((a) => <option key={a}>{a}</option>)}
+                        {REF.avpu.map((a) => <option key={a}>{a}</option>)}
                       </select>
                     </Field>
                     <Field label="Score de Glasgow" hint="Optionnel — 3 à 15" erreur={erreurs.glasgow}>
@@ -121,7 +126,8 @@ export default function Triage() {
                       <input className={`input${erreurs.eva ? ' invalid' : ''}`} type="number" min="0" max="10"
                         value={v.eva} onChange={(e) => setV({ ...v, eva: e.target.value })} />
                     </Field>
-                    <Field label="Tri manuel (protocole local)" hint="Pour comparaison avec le modèle">
+                    <Field label={modele ? 'Tri manuel (protocole local)' : 'Catégorie retenue *'}
+                      hint={modele ? 'Pour comparaison avec le modèle' : 'Fixée par l’infirmier : aucun modèle n’est branché'}>
                       <CatSelect value={v.categorieManuelle} onChange={(c) => setV({ ...v, categorieManuelle: c })} />
                     </Field>
                   </div>
@@ -143,8 +149,11 @@ export default function Triage() {
                 <Panel kicker={eval_ ? `Modèle ${eval_.modele}` : 'Modèle'} title="Priorité proposée"
                   ton={eval_?.categorie === 1 ? 'urgent' : eval_?.categorie === 2 ? 'attention' : undefined}>
                   {evalErr && <Alert level="crit" title="Évaluation indisponible">{evalErr}</Alert>}
-                  {!eval_ && !evalErr && <Empty titre="Pas encore de proposition">Saisissez les constantes pour obtenir une catégorie.</Empty>}
-                  {eval_ && (
+                  {!eval_ && !evalErr && <Empty titre="Pas encore d’évaluation">Saisissez les constantes.</Empty>}
+                  {eval_ && !modele && (
+                    <Empty titre="Aucune proposition">{eval_.raison}</Empty>
+                  )}
+                  {modele && (
                     <div className="stack-sm">
                       <div className="row" style={{ gap: 12 }}>
                         <CatBadge cat={eval_.categorie} />
@@ -194,21 +203,28 @@ export default function Triage() {
 
                 <Panel kicker="Décision infirmière" title="Validation">
                   <div className="stack-sm">
-                    {v.categorieManuelle && eval_ && v.categorieManuelle !== eval_.categorie && (
+                    {!modele && (
+                      <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                        {v.categorieManuelle
+                          ? `Catégorie retenue : ${v.categorieManuelle} · ${catLabel(v.categorieManuelle)}.`
+                          : 'Choisissez la catégorie retenue dans « Évaluation clinique ».'}
+                      </p>
+                    )}
+                    {modele && v.categorieManuelle && v.categorieManuelle !== eval_.categorie && (
                       <Alert level="info">
                         Votre tri manuel (catégorie {v.categorieManuelle}) diverge de la proposition du modèle
                         (catégorie {eval_.categorie}).
                       </Alert>
                     )}
-                    <label className="check">
+                    {modele && <label className="check">
                       <input type="checkbox" checked={correction.active}
                         onChange={(e) => setCorrection({
                           ...correction, active: e.target.checked,
                           cat: e.target.checked ? (v.categorieManuelle ?? eval_?.categorie ?? null) : null
                         })} />
                       Corriger la catégorie proposée
-                    </label>
-                    {correction.active && (
+                    </label>}
+                    {modele && correction.active && (
                       <>
                         <Field label="Catégorie retenue">
                           <CatSelect value={correction.cat} onChange={(c) => setCorrection({ ...correction, cat: c })} />
@@ -222,8 +238,10 @@ export default function Triage() {
                     )}
                     <button className="btn btn-primary btn-block" onClick={valider}
                       disabled={envoi || !eval_ || Object.keys(erreurs).length > 0
-                        || (correction.active && (!correction.cat || !correction.motif.trim()))}>
+                        || (!modele && !v.categorieManuelle)
+                        || (modele && correction.active && (!correction.cat || !correction.motif.trim()))}>
                       {envoi ? <><span className="spinner" /> Enregistrement…</>
+                        : !modele ? 'Enregistrer la catégorie'
                         : correction.active ? 'Enregistrer la correction' : 'Valider la catégorie proposée'}
                     </button>
                     <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>

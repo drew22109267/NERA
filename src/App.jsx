@@ -19,6 +19,7 @@ import Notifications from './pages/Notifications.jsx'
 import Reports from './pages/Reports.jsx'
 import Quality from './pages/Quality.jsx'
 import Admin from './pages/Admin.jsx'
+import Recherche from './pages/Recherche.jsx'
 import MonEspace from './pages/MonEspace.jsx'
 import Profil from './pages/Profil.jsx'
 import NotFound from './pages/NotFound.jsx'
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="rapports" element={<Reports />} />
         <Route path="qualite" element={<Quality />} />
         <Route path="admin" element={<Admin />} />
+        <Route path="donnees" element={<Recherche />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

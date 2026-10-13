@@ -4,14 +4,14 @@ import { api } from '../api/client.js'
 import { useApi } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { PageHead, Panel, Field, Etat, Empty, Alert, Bar } from '../components/ui.jsx'
-import { MODES_ENTREE, SEV_PAR_NIVEAU, LIBELLE_TENSION } from '../lib/referentiels.js'
+import { SEV_PAR_NIVEAU, LIBELLE_TENSION, REF } from '../lib/referentiels.js'
 
 export default function Admission() {
   const nav = useNavigate()
   const toast = useToast()
   const [q, setQ] = useState('')
   const [choisi, setChoisi] = useState(null)
-  const [f, setF] = useState({ modeEntree: MODES_ENTREE[0], motif: '', motifLibre: '', serviceViseId: '' })
+  const [f, setF] = useState({ modeEntree: REF.modesEntree[0], motif: '', motifLibre: '', serviceViseId: '' })
   const [envoi, setEnvoi] = useState(false)
 
   const motifs = useApi('/api/orientation/motifs')
@@ -136,7 +136,7 @@ export default function Admission() {
           <div className="stack-sm">
             <Field label="Mode d’entrée">
               <select className="input" value={f.modeEntree} onChange={(e) => setF({ ...f, modeEntree: e.target.value })}>
-                {MODES_ENTREE.map((m) => <option key={m}>{m}</option>)}
+                {REF.modesEntree.map((m) => <option key={m}>{m}</option>)}
               </select>
             </Field>
 

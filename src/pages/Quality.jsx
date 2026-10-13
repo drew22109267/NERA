@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useApi } from '../api/hooks.js'
 import { PageHead, Panel, StatCard, Bar, Etat, Pager, Field, Alert, Empty, PAR_PAGE, RechercheTableau } from '../components/ui.jsx'
-import { dateHeureFr } from '../lib/referentiels.js'
+import { REF, dateHeureFr } from '../lib/referentiels.js'
 
-const TYPES_AUDIT = ['Tous', 'consultation', 'creation', 'modification', 'suppression', 'connexion']
+const TYPES_AUDIT = () => ['Tous', ...REF.typesAudit]
 const LIBELLE_TYPE = {
   consultation: 'Consultation', creation: 'Création', modification: 'Modification',
   suppression: 'Suppression', connexion: 'Connexion'
@@ -154,7 +154,7 @@ export default function Quality() {
           <Field label="Type d’accès">
             <select className="input" style={{ minHeight: 36 }} value={type}
               onChange={(e) => { setType(e.target.value); setPageAudit(1) }}>
-              {TYPES_AUDIT.map((t) => <option key={t} value={t}>{LIBELLE_TYPE[t] ?? t}</option>)}
+              {TYPES_AUDIT().map((t) => <option key={t} value={t}>{LIBELLE_TYPE[t] ?? t}</option>)}
             </select>
           </Field>
         }>

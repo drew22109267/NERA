@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { api, setToken, getToken, setUnauthorizedHandler } from '../api/client.js'
-import { ROLE_LABEL } from '../lib/referentiels.js'
+import { roleLabel } from '../lib/referentiels.js'
 
 const AuthCtx = createContext(null)
 
@@ -53,7 +53,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => { setToken(null); setUser(null) }, [])
 
   return (
-    <AuthCtx.Provider value={{ user, pret, login, signup, logout, roleLabel: (r) => ROLE_LABEL[r] ?? r }}>
+    <AuthCtx.Provider value={{ user, pret, login, signup, logout, roleLabel }}>
       {children}
     </AuthCtx.Provider>
   )

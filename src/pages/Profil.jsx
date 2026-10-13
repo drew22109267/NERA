@@ -6,8 +6,8 @@ import { useAuth } from '../auth/AuthContext.jsx'
 import { useToast } from '../components/Toast.jsx'
 import { Modal, Confirm } from '../components/Modal.jsx'
 import { Avatar, Icon } from '../components/Icon.jsx'
-import { PageHead, Panel, Field, Etat, Alert } from '../components/ui.jsx'
-import { ROLES, ROLE_LABEL, dateHeureFr } from '../lib/referentiels.js'
+import { PageHead, Panel, Field, Etat, Alert, MotDePasse } from '../components/ui.jsx'
+import { dateHeureFr, roleLabel, REF } from '../lib/referentiels.js'
 
 function Ligne({ label, children }) {
   return (
@@ -85,7 +85,7 @@ export default function Profil() {
                 <h3 style={{ margin: 0 }}>{u?.nom}</h3>
                 <p className="text-muted" style={{ margin: '2px 0 8px', fontSize: 14 }}>{u?.email}</p>
                 <div className="row" style={{ gap: 6 }}>
-                  <span className="tag tag-brand">{ROLE_LABEL[u?.role] ?? u?.role}</span>
+                  <span className="tag tag-brand">{roleLabel(u?.role) ?? u?.role}</span>
                   <span className={`tag ${u?.actif ? 'tag-sev-4' : 'tag-neutral'}`}>
                     {u?.actif ? 'Compte actif' : 'Compte désactivé'}
                   </span>
@@ -96,7 +96,7 @@ export default function Profil() {
             <div className="profil-liste">
               <Ligne label="Identifiant">#{u?.id}</Ligne>
               <Ligne label="Adresse électronique">{u?.email}</Ligne>
-              <Ligne label="Rôle">{ROLE_LABEL[u?.role] ?? u?.role}</Ligne>
+              <Ligne label="Rôle">{roleLabel(u?.role) ?? u?.role}</Ligne>
               <Ligne label="Compte créé le">{dateHeureFr(u?.creeLe)}</Ligne>
               <Ligne label="Dernière connexion">
                 {u?.derniereConnexion ? dateHeureFr(u.derniereConnexion) : <span className="text-muted">jamais</span>}
@@ -115,7 +115,7 @@ export default function Profil() {
                 Le rôle détermine les écrans visibles dans le menu. Seul un administrateur peut le modifier.
               </p>
               <div className="profil-liste">
-                <Ligne label="Rôle attribué">{ROLE_LABEL[u?.role] ?? '—'}</Ligne>
+                <Ligne label="Rôle attribué">{roleLabel(u?.role) ?? '—'}</Ligne>
                 <Ligne label="Service de rattachement">
                   {u?.serviceId ? `#${u.serviceId}` : <span className="text-muted">non rattaché</span>}
                 </Ligne>
@@ -172,7 +172,7 @@ export default function Profil() {
             <Field label="Rôle" hint="Détermine les écrans accessibles.">
               <select className="input" value={edition.role}
                 onChange={(e) => setEdition({ ...edition, role: e.target.value })}>
-                {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                {Object.keys(REF.roles).map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
               </select>
             </Field>
           </div>
@@ -192,12 +192,12 @@ export default function Profil() {
           }>
           <div className="stack-sm">
             <Field label="Nouveau mot de passe" hint="Au moins 8 caractères.">
-              <input className="input" type="password" value={mdp.motDePasse}
+              <MotDePasse value={mdp.motDePasse}
                 onChange={(e) => setMdp({ ...mdp, motDePasse: e.target.value })} />
             </Field>
             <Field label="Confirmation"
               erreur={mdp.confirme && mdp.confirme !== mdp.motDePasse ? 'Les deux saisies diffèrent.' : null}>
-              <input className="input" type="password" value={mdp.confirme}
+              <MotDePasse value={mdp.confirme}
                 onChange={(e) => setMdp({ ...mdp, confirme: e.target.value })} />
             </Field>
           </div>
