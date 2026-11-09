@@ -16,7 +16,7 @@ export default function Appointments() {
   const [onglet, setOnglet] = useState('rdv')
 
   const services = useApi('/api/services')
-  const rdv = useApi('/api/rendezvous')
+  const rdv = useApi('/api/rendezvous', null, { intervalMs: 60000 })
 
   const [f, setF] = useState({ patientId: '', serviceId: '', date: '', heure: '', motif: '' })
   const [c, setC] = useState({
@@ -109,7 +109,7 @@ export default function Appointments() {
       {onglet === 'rdv' && (
         <div className="grid g-side">
           <Panel kicker="Agenda" title={estPatient ? 'Mes rendez-vous' : 'Rendez-vous à venir'}
-            actions={<button className="btn btn-secondary btn-sm" onClick={rdv.recharger}>Rafraîchir</button>}>
+>
             <RechercheTableau valeur={tbl.q} onChange={tbl.setQ}
               placeholder="Rechercher un patient, un service, un motif…"
               total={tbl.total} libelle="rendez-vous" />

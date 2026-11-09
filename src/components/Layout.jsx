@@ -112,6 +112,7 @@ export default function Layout() {
           </Link>
           <h1 className="topbar-title">{titreSection(loc.pathname)}</h1>
           <span className="spacer" />
+          <div id="actions-page" className="topbar-actions" key={loc.pathname} />
 
           <button className="icon-btn round" onClick={() => setRecherche(true)}
             aria-label="Rechercher" title="Rechercher (Ctrl K)">

@@ -12,7 +12,7 @@ const SEV_CAT = { 1: 'sev-1', 2: 'sev-2', 3: 'sev-3', 4: 'sev-4' }
 export default function Reports() {
   const toast = useToast()
   const [jours, setJours] = useState(30)
-  const ind = useApi('/api/rapports/indicateurs', { jours })
+  const ind = useApi('/api/rapports/indicateurs', { jours }, { intervalMs: 60000 })
   const services = useApi('/api/services', { hospitalisationSeule: true })
 
   const d = ind.data
@@ -56,7 +56,6 @@ export default function Reports() {
             {PERIODES.map((p) => <option key={p} value={p}>{p} derniers jours</option>)}
           </select>
         </Field>
-        <button className="btn btn-secondary" onClick={ind.recharger}>Rafraîchir</button>
       </div>
 
       <Etat loading={ind.loading} error={ind.error} onRetry={ind.recharger}>
@@ -65,10 +64,13 @@ export default function Reports() {
             <div className="grid g4 section">
               <StatCard title="Passages enregistrés" value={d?.passages}
                 deltaNote={`${d?.tries} trié(s) sur la période`} />
-              <StatCard title="Taux d’occupation moyen" value={d?.tauxOccupationMoyen} sub=" %"
-                delta={`${d?.litsBloques} lits bloqués`} deltaDir="down" deltaNote="capacité armée" />
-              <StatCard title="Corrections humaines du score" value={d?.tauxCorrection} sub=" %"
-                deltaNote={`${d?.corrections} correction(s) sur ${d?.tries} triage(s)`} />
+              <StatCard title="Taux d’occupation moyen" value={d?.litsArmes === 0 ? '—' : d?.tauxOccupationMoyen}
+                sub={d?.litsArmes === 0 ? null : ' %'}
+                delta={d?.litsBloques ? `${d.litsBloques} lits bloqués` : null} deltaDir="down"
+                deltaNote={d?.litsArmes === 0 ? 'Aucun service paramétré' : 'capacité armée'} />
+              <StatCard title="Corrections humaines du score" value={d?.tries ? d.tauxCorrection : '—'}
+                sub={d?.tries ? ' %' : null}
+                deltaNote={d?.tries ? `${d.corrections} correction(s) sur ${d.tries} triage(s)` : 'Aucun triage sur la période'} />
               <StatCard title="Divergences décision / modèle" value={d?.divergences}
                 deltaNote="matériau d’audit d’équité" />
             </div>
@@ -117,9 +119,9 @@ export default function Reports() {
 
                 <Panel kicker="Concordance" title="Modèle et décision humaine">
                   <div className="grid g2" style={{ gap: 12 }}>
-                    <Kpi label="Accord" value={d?.tries ? `${Math.max(0, 100 - d?.tauxCorrection).toFixed(1)}` : '—'} unit="%"
+                    <Kpi label="Accord" value={d?.tries ? `${Math.max(0, 100 - d?.tauxCorrection).toFixed(1)}` : '—'} unit={d?.tries ? '%' : null}
                       note="catégorie du modèle retenue telle quelle" />
-                    <Kpi label="Correction" value={d?.tauxCorrection} unit="%"
+                    <Kpi label="Correction" value={d?.tries ? d.tauxCorrection : '—'} unit={d?.tries ? '%' : null}
                       note="catégorie modifiée par le soignant" />
                   </div>
                   <div style={{ marginTop: 14 }}>

@@ -92,7 +92,6 @@ export default function Discharges() {
             {(services.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
           </select>
         </Field>
-        <button className="btn btn-secondary" onClick={sejours.recharger}>Rafraîchir</button>
       </div>
 
       <Panel>

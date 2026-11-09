@@ -49,25 +49,29 @@ export default function Beds() {
       <Etat loading={bord.loading} error={bord.error} onRetry={bord.recharger}>
         {d && (
           <div className="grid g4 section">
-            <StatCard title="Lits occupés" value={d?.litsOccupes} sub={`/${d?.litsArmes}`}
-              pct={`${Math.round(taux * 100)}%`}
-              delta={`${d?.litsLibres} libres`} deltaDir={taux > 0.9 ? 'down' : 'up'} deltaNote="capacité armée">
-              <div style={{ marginTop: 12, maxWidth: 190 }}>
-                <Bar value={taux * 100} sev={SEV_PAR_NIVEAU[niveauTension(taux)]} />
-              </div>
-            </StatCard>
-            <StatCard title="Lits bloqués" value={d?.litsBloques}
-              deltaNote="motif non médical — levier de capacité le plus rentable"
-              delta={d?.litsArmes ? `${Math.round((d?.litsBloques / d?.litsArmes) * 100)} % du parc` : null}
+            {d?.litsArmes > 0 ? (
+              <StatCard title="Lits occupés" value={d.litsOccupes} sub={`/${d.litsArmes}`}
+                pct={`${Math.round(taux * 100)} %`}
+                delta={`${d.litsLibres} libres`} deltaDir={taux > 0.9 ? 'down' : 'neutral'} deltaNote="capacité armée">
+                <div style={{ marginTop: 12, maxWidth: 190 }}>
+                  <Bar value={taux * 100} sev={SEV_PAR_NIVEAU[niveauTension(taux)]} />
+                </div>
+              </StatCard>
+            ) : <StatCard title="Lits occupés" value="—" deltaNote="Aucun service paramétré" />}
+            <StatCard title="Lits bloqués" value={d?.litsArmes > 0 ? d.litsBloques : '—'}
+              deltaNote="motif non médical"
+              delta={d?.litsArmes && d.litsBloques ? `${Math.round((d.litsBloques / d.litsArmes) * 100)} % du parc` : null}
               deltaDir="down" />
-            <StatCard title="Réanimation" value={rea?.occupes ?? 0} sub={`/${rea?.litsArmes ?? 0}`}
-              deltaNote={rea ? `${rea.libres} lit(s) libre(s)` : 'service non paramétré'}
-              visual={<Donut value={tauxRea * 100} size={86} stroke={11}
-                color={tauxRea > 0.9 ? 'var(--sev-1)' : 'var(--viz-1)'} />} />
-            <StatCard title="Patients en attente de lit" value={d?.enAttente}
-              delta={d?.delaisDepasses ? `${d?.delaisDepasses} délai(s) dépassé(s)` : 'délais respectés'}
-              deltaDir={d?.delaisDepasses ? 'down' : 'up'}
-              deltaNote={`${d?.sejoursEnCours} hospitalisation(s) en cours`} />
+            {rea?.litsArmes > 0 ? (
+              <StatCard title="Réanimation" value={rea.occupes} sub={`/${rea.litsArmes}`}
+                deltaNote={`${rea.libres} lit(s) libre(s)`}
+                visual={<Donut value={tauxRea * 100} size={78} stroke={9}
+                  color={tauxRea > 0.9 ? 'var(--sev-1)' : 'var(--brand)'} />} />
+            ) : <StatCard title="Réanimation" value="—" deltaNote="Service non paramétré" />}
+            <StatCard title="Patients en attente de lit" value={d?.enAttente ?? 0}
+              delta={d?.delaisDepasses ? `${d.delaisDepasses} au-delà du délai` : null}
+              deltaDir="down"
+              deltaNote={d?.sejoursEnCours ? `${d.sejoursEnCours} hospitalisation(s) en cours` : 'Aucune hospitalisation en cours'} />
           </div>
         )}
       </Etat>

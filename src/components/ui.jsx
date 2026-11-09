@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { REF, catLabel } from '../lib/referentiels.js'
 import { Icon } from './Icon.jsx'
 
@@ -11,12 +12,12 @@ export const PAR_PAGE = 6
  * ne garde que ses actions, alignées à droite au-dessus du contenu.
  */
 export function PageHead({ actions }) {
-  if (!actions) return null
-  return (
-    <div className="page-head actions-only">
-      <div className="row row-end">{actions}</div>
-    </div>
-  )
+  // Les actions de la page se placent dans la barre du haut, à droite du titre : aucune
+  // ligne vide au-dessus du contenu pour un seul bouton.
+  const [cible, setCible] = useState(null)
+  useEffect(() => { setCible(document.getElementById('actions-page')) }, [])
+  if (!actions || !cible) return null
+  return createPortal(<div className="row" style={{ flexWrap: 'nowrap' }}>{actions}</div>, cible)
 }
 
 export function Panel({ title, kicker, actions, children, style, ton, flush = false }) {
@@ -48,6 +49,8 @@ export function Kpi({ label, value, unit, note }) {
 }
 
 export function StatCard({ title, value, sub, pct, delta, deltaDir = 'up', deltaNote, visual, children }) {
+  // « 0 écart », « 0 refus » : pas une tendance, donc pas de flèche ni de couleur.
+  if (/^\s*0(\D|$)/.test(String(delta ?? ''))) deltaDir = 'neutral'
   return (
     <div className="stat-card">
       <div className="head"><span className="t">{title}</span></div>
@@ -66,7 +69,7 @@ export function StatCard({ title, value, sub, pct, delta, deltaDir = 'up', delta
           {deltaNote && <span>{deltaNote}</span>}
           {delta && (
             <span className={`delta ${deltaDir}`} style={{ marginLeft: 'auto' }}>
-              {deltaDir === 'up' ? '↑' : '↓'} {delta}
+              {deltaDir === 'up' ? '↑ ' : deltaDir === 'down' ? '↓ ' : ''}{delta}
             </span>
           )}
         </div>
@@ -124,10 +127,11 @@ export function Empty({ titre, children }) {
 }
 
 export function Alert({ level = 'info', title, children }) {
-  const glyphe = { crit: '⚠', warn: '⚠', info: 'i', ok: '✓' }[level]
+  // Une icône seulement quand elle porte un sens (danger, réussite) ; une information n'en a pas.
+  const icone = { crit: 'alert', warn: 'alert', ok: 'check' }[level]
   return (
     <div className={`alert ${level}`} role={level === 'crit' ? 'alert' : undefined}>
-      <span className="ico" aria-hidden="true">{glyphe}</span>
+      {icone && <span className="ico" aria-hidden="true"><Icon name={icone} /></span>}
       <div>
         {title && <strong>{title} — </strong>}
         {children}

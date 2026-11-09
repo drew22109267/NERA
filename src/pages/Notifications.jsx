@@ -61,7 +61,6 @@ export default function Notifications() {
                   {(destinataires.data ?? []).map((d) => <option key={d}>{d}</option>)}
                 </select>
               </Field>
-              <button className="btn btn-secondary" onClick={liste.recharger}>Rafraîchir</button>
             </div>
           )}
 
@@ -132,8 +131,8 @@ export default function Notifications() {
               {REF.canaux.map((nom) => (
                 <div key={nom} style={{ display: 'flex', gap: 10 }}>
                   <span style={{
-                    width: 30, height: 30, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
-                    background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--muted)'
+                    width: 30, height: 30, borderRadius: 3, flex: 'none', display: 'grid', placeItems: 'center',
+                    color: 'var(--muted-2)'
                   }}><Icon name={nom === 'SMS' || nom === 'USSD' ? 'phone' : nom === 'Application' ? 'bell' : 'list'} /></span>
                   <span>
                     <strong style={{ fontSize: 13.5 }}>{nom}</strong>

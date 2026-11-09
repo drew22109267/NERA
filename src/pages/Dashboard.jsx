@@ -46,30 +46,37 @@ export default function Dashboard() {
             )}
 
             <div className="grid g4 section">
-              <StatCard title="Lits occupés" value={d?.litsOccupes} sub={`/${d?.litsArmes}`}
-                pct={`${Math.round(taux * 100)}%`}
-                delta={`${d?.litsLibres} libres`} deltaDir={taux > 0.9 ? 'down' : 'up'}
-                deltaNote={`${d?.litsBloques} bloqués (motif non médical)`}>
-                <div style={{ marginTop: 12, maxWidth: 190 }}>
-                  <Bar value={taux * 100} sev={SEV_PAR_NIVEAU[niveauTension(taux)]} />
-                </div>
-              </StatCard>
+              {/* Sans donnée, une carte affiche « — » et dit pourquoi : jamais de 0 %, de jauge
+                  vide ni de flèche colorée qui ressembleraient à un résultat. */}
+              {d?.litsArmes > 0 ? (
+                <StatCard title="Lits occupés" value={d.litsOccupes} sub={`/${d.litsArmes}`}
+                  pct={`${Math.round(taux * 100)} %`}
+                  delta={`${d.litsLibres} libres`} deltaDir={taux > 0.9 ? 'down' : 'neutral'}
+                  deltaNote={d.litsBloques ? `${d.litsBloques} bloqués (motif non médical)` : 'aucun lit bloqué'}>
+                  <div style={{ marginTop: 12, maxWidth: 190 }}>
+                    <Bar value={taux * 100} sev={SEV_PAR_NIVEAU[niveauTension(taux)]} />
+                  </div>
+                </StatCard>
+              ) : (
+                <StatCard title="Lits occupés" value="—" deltaNote="Aucun service paramétré" />
+              )}
 
               <StatCard title="Attente moyenne aux urgences"
-                value={minutes(d?.attenteMoyenneMinutes)}
-                delta={d?.delaisDepasses ? `${d?.delaisDepasses} dépassement(s)` : 'délais respectés'}
-                deltaDir={d?.delaisDepasses ? 'down' : 'up'}
-                deltaNote={`${d?.enAttente} patient(s) en file · ${d?.aTrier} à trier`} />
+                value={d?.enAttente ? minutes(d.attenteMoyenneMinutes) : '—'}
+                delta={d?.delaisDepasses ? `${d.delaisDepasses} au-delà du délai` : null}
+                deltaDir="down"
+                deltaNote={d?.enAttente ? `${d.enAttente} en file · ${d.aTrier} à trier` : 'Personne en attente'} />
 
-              <StatCard title="Passages aujourd’hui" value={d?.passagesAujourdhui}
-                delta={`${d?.patientsTotal} dossiers`} deltaNote="depuis l’ouverture du registre"
-                visual={<Sparkline data={d?.fluxHoraire?.length ? d?.fluxHoraire : [0, 0, 0, 0]} color="var(--sev-4)" />} />
+              <StatCard title="Passages aujourd’hui" value={d?.passagesAujourdhui ?? 0}
+                deltaNote={`${d?.patientsTotal ?? 0} dossiers au registre`}
+                visual={d?.fluxHoraire?.some((x) => x > 0)
+                  ? <Sparkline data={d.fluxHoraire} color="var(--brand)" /> : null} />
 
-              <StatCard title="Hospitalisations en cours" value={d?.sejoursEnCours}
-                delta={`${d?.demandesNonSatisfaites} refus enregistrés`} deltaDir="down"
-                deltaNote={`${d?.rendezVousAVenir} rendez-vous à venir`}
-                visual={<Donut value={taux * 100} size={86} stroke={11}
-                  color={taux > 0.9 ? 'var(--sev-1)' : 'var(--viz-1)'} label="lits" />} />
+              <StatCard title="Hospitalisations en cours" value={d?.sejoursEnCours ?? 0}
+                delta={d?.demandesNonSatisfaites ? `${d.demandesNonSatisfaites} refus` : null} deltaDir="down"
+                deltaNote={d?.rendezVousAVenir ? `${d.rendezVousAVenir} rendez-vous à venir` : 'Aucun rendez-vous à venir'}
+                visual={d?.litsArmes > 0 ? <Donut value={taux * 100} size={78} stroke={9}
+                  color={taux > 0.9 ? 'var(--sev-1)' : 'var(--brand)'} label="lits" /> : null} />
             </div>
 
             <div className="grid g-side section">

@@ -71,7 +71,6 @@ export default function Queue() {
           <input className="input" value={q} onChange={(e) => changer(setQ)(e.target.value)}
             placeholder="Nom ou n° de passage" />
         </Field>
-        <button className="btn btn-secondary" onClick={liste.recharger}>Rafraîchir</button>
       </div>
 
       <Panel>

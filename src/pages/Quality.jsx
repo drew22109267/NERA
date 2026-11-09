@@ -38,9 +38,10 @@ export default function Quality() {
             <div className="grid g4 section">
               <StatCard title="Prédictions journalisées" value={d?.predictionsTotal}
                 deltaNote="depuis l’ouverture de la base" />
-              <StatCard title="Taux de correction humaine" value={d?.tauxCorrection} sub=" %"
-                delta={`${d?.ecarts} écart(s)`} deltaDir={d?.tauxCorrection > 30 ? 'down' : 'up'}
-                deltaNote="catégorie modifiée par le soignant" />
+              <StatCard title="Taux de correction humaine" value={d?.predictionsTotal ? d.tauxCorrection : '—'}
+                sub={d?.predictionsTotal ? ' %' : null}
+                delta={d?.ecarts ? `${d.ecarts} écart(s)` : null} deltaDir={d?.tauxCorrection > 30 ? 'down' : 'neutral'}
+                deltaNote={d?.predictionsTotal ? 'catégorie modifiée par le soignant' : 'Aucune prédiction encore'} />
               <StatCard title="Modèle de triage actif" value={modele ?? '—'}
                 deltaNote="implémentation par règles, apprentissage non branché" />
               <StatCard title="Champs suivis en complétude" value={d?.completude?.length ?? 0}

@@ -12,8 +12,8 @@ import { dateFr, dateHeureFr, ilYa, initiales, REF } from '../lib/referentiels.j
 const Info = ({ icon, k, v }) => (
   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
     <span style={{
-      width: 32, height: 32, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
-      background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--muted)'
+      width: 32, height: 32, borderRadius: 3, flex: 'none', display: 'grid', placeItems: 'center',
+      color: 'var(--muted-2)'
     }}><Icon name={icon} /></span>
     <span style={{ minWidth: 0 }}>
       <span style={{ display: 'block', fontSize: 12, color: 'var(--muted-2)' }}>{k}</span>
@@ -97,7 +97,7 @@ export default function PatientDetail() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 'var(--space-6)', alignItems: 'start' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{
-                      width: 110, height: 124, borderRadius: 6, background: 'var(--brand-soft)',
+                      width: 110, height: 124, borderRadius: 3, background: 'var(--brand-soft)',
                       color: 'var(--brand-ink)', display: 'grid', placeItems: 'center',
                       fontSize: 32, fontWeight: 700
                     }}>{initiales(`${p?.prenom} ${p?.nom}`)}</div>
@@ -132,8 +132,8 @@ export default function PatientDetail() {
                       {p?.antecedents.map((a) => (
                         <div key={a} style={{ display: 'flex', gap: 10 }}>
                           <span style={{
-                            width: 32, height: 32, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
-                            background: 'var(--brand-soft)', color: 'var(--brand-ink)'
+                            width: 32, height: 32, borderRadius: 3, flex: 'none', display: 'grid', placeItems: 'center',
+                            color: 'var(--brand)'
                           }}><Icon name="heart" /></span>
                           <span>
                             <strong style={{ display: 'block', fontSize: 14 }}>{a}</strong>
@@ -274,8 +274,8 @@ export default function PatientDetail() {
                       {mesSejours.map((s) => (
                         <div key={s.id} className="row" style={{ gap: 10 }}>
                           <span style={{
-                            width: 34, height: 34, borderRadius: 5, flex: 'none', display: 'grid', placeItems: 'center',
-                            background: 'var(--viz-1-soft)', color: '#12609c'
+                            width: 34, height: 34, borderRadius: 3, flex: 'none', display: 'grid', placeItems: 'center',
+                            color: 'var(--muted-2)'
                           }}><Icon name="bed" /></span>
                           <span style={{ flex: 1, minWidth: 0 }}>
                             <strong style={{ display: 'block', fontSize: 14 }}>{s.serviceNom}{s.lit ? ` · ${s.lit}` : ''}</strong>

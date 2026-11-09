@@ -4,7 +4,7 @@ import { api } from '../api/client.js'
 import { useApi, useTri } from '../api/hooks.js'
 import { useToast } from '../components/Toast.jsx'
 import { Modal } from '../components/Modal.jsx'
-import { PageHead, Panel, Field, Etat, Pager, Th, Alert, PAR_PAGE } from '../components/ui.jsx'
+import { PageHead, Panel, Field, Etat, Pager, Th, Alert, RechercheTableau, PAR_PAGE } from '../components/ui.jsx'
 import { dateFr } from '../lib/referentiels.js'
 import PatientForm, { PATIENT_VIDE as vide, patientValide } from '../components/PatientForm.jsx'
 
@@ -17,7 +17,7 @@ export default function Patients() {
   const [envoi, setEnvoi] = useState(false)
   const { tri, basculer } = useTri({ cle: 'nom', sens: 'asc' })
 
-  const liste = useApi('/api/patients', { q, page, pageSize: PAR_PAGE, tri: tri.cle, sens: tri.sens })
+  const liste = useApi('/api/patients', { q, page, pageSize: PAR_PAGE, tri: tri.cle, sens: tri.sens }, { intervalMs: 60000 })
   const doublons = useApi('/api/patients/doublons',
     form ? { nom: form.nom, sexe: form.sexe, age: Number(form.age) || 0 } : null,
     { skip: !form || form.nom.trim().length < 2 })
@@ -47,11 +47,8 @@ export default function Patients() {
       </PageHead>
 
       <div className="toolbar">
-        <Field label="Recherche">
-          <input className="input" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }}
-            placeholder="Nom, téléphone, n° de dossier…" />
-        </Field>
-        <button className="btn btn-secondary" onClick={liste.recharger}>Rafraîchir</button>
+        <RechercheTableau valeur={q} onChange={(v) => { setQ(v); setPage(1) }}
+          placeholder="Nom, téléphone ou n° de dossier" />
       </div>
 
       <Panel>
