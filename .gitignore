@@ -3,3 +3,8 @@ dist
 .DS_Store
 *.local
 .vite
+
+# Variables locales : jamais suivies (seul .env.example est publié)
+.env
+.env.*
+!.env.example
